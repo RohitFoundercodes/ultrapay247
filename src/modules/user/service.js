@@ -10,17 +10,18 @@ exports.register = async(data)=>{
   }
   data.password = await hash(data.password);
   const user = await repo.create(data);
-  return {token:generate({id:user.id})};
+  return {token:generate({id:user.id, role:'merchant'})};
 };
 
 exports.login = async(data)=>{
-  if (!data.email || !data.password) {
+  if (typeof data.email !== 'string' || typeof data.password !== 'string' ||
+      !data.email.trim() || !data.password) {
     const error = new Error('Email and password are required');
     error.status = 400;
     throw error;
   }
-  const user = await repo.findByEmail(data.email);
-  if(!user) {
+  const user = await repo.findByEmail(data.email.trim().toLowerCase());
+  if(!user || user.status !== 'active' || !user.password) {
     const error = new Error('Invalid credentials');
     error.status = 401;
     throw error;
@@ -31,5 +32,5 @@ exports.login = async(data)=>{
     error.status = 401;
     throw error;
   }
-  return {token:generate({id:user.id})};
+  return {token:generate({id:user.id, role:'merchant'})};
 };

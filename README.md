@@ -7,20 +7,62 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /health`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/admin/login`
+- `POST /api/admin/merchants`
+- `GET /api/admin/merchants`
+- `GET /api/admin/merchants/:merchantId`
+- `PATCH /api/admin/merchants/:merchantId`
+- `PATCH /api/admin/merchants/:merchantId/status`
+- `POST /api/admin/merchants/:merchantId/token/reset`
+- `GET /api/admin/merchants/:merchantId/ledger`
+- `POST /api/admin/merchants/:merchantId/ledger`
 - `GET /api/payments`
 - `POST /api/payments`
 - `GET /api/payments/:id`
 - `PATCH /api/payments/:id/status`
 
 Payment endpoints require `Authorization: Bearer <token>`.
+Admin login returns an admin-role JWT and never includes the password hash in its response.
+Merchant management endpoints require an admin JWT. Payment endpoints accept a
+merchant JWT or the generated `X-Merchant-Id` and `X-Merchant-Token` headers.
 
 ## Setup
 
 ```bash
 npm install
-npm run migrate
 npm run dev
 ```
+
+The server automatically applies pending database migrations before listening.
+`npm run migrate` is also available to apply migrations manually.
+
+Create the first admin after running migrations. Set `ADMIN_NAME`, `ADMIN_EMAIL`,
+and `ADMIN_PASSWORD` in the environment (use a password of at least 12 characters),
+then run:
+
+```bash
+npm run admin:create
+```
+
+Sign in with `POST /api/admin/login` and JSON containing `email` and `password`.
+
+### Local test admin
+
+For local development only, create a test admin after starting the app once
+(which applies migrations):
+
+```powershell
+$env:NODE_ENV = "development"
+npm run admin:seed:test
+```
+
+Test login:
+
+- Email: `admin@test.ultrapay.local`
+- Password: `UltraPay-Test-Admin-2026!`
+
+Then send a `POST` request to `/api/admin/login` with those credentials. Do not
+use this test account or password in production.
 
 Configure `.env` before starting the server:
 
@@ -31,233 +73,99 @@ DB_USER=root
 DB_PASS=your_password
 DB_NAME=ultrapay
 JWT_SECRET=replace-with-a-long-random-secret
+MERCHANT_DATA_KEY=replace-with-64-hex-characters
 ```
 
-## Project architecture
+Generate `MERCHANT_DATA_KEY` with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+Keep this key secret and stable: changing it makes previously encrypted bank
+account, Aadhaar, and PAN values unreadable.
 
-### 1. Entry points
+## Merchant management
 
-- `src/server.js`
-  - Loads `src/app.js` and starts the HTTP server.
-  - Uses `process.env.PORT` from `.env`.
+Log in as an admin, then send the resulting token as
+`Authorization: Bearer <admin-token>`.
 
-- `src/app.js`
-  - Initializes Express and JSON body parsing.
-  - Mounts module routers for users and products.
-  - Includes a global error handler.
-
-### 2. Database layer
-
-- `src/config/db.js`
-  - Creates a MySQL connection pool with `mysql2/promise`.
-  - Reads `DB_HOST`, `DB_USER`, `DB_PASS`, and `DB_NAME` from environment variables.
-
-- `database/migrate.js`
-  - Runs migration files from `database/migrations`.
-  - Tracks executed migrations in the `migrations` table.
-
-### 3. Module structure
-
-Each feature follows a layered architecture with:
-
-- `routes` — HTTP route definitions
-- `controller` — request/response handling
-- `service` — business logic
-- `repository` — direct database access
-
-#### User module (`src/modules/user`)
-
-- `routes.js`
-  - Registers user routes:
-    - `POST /api/users/register`
-    - `POST /api/users/login`
-
-- `controller.js`
-  - Wraps service calls in try/catch blocks and forwards errors.
-
-- `service.js`
-  - `register(data)` hashes the password and creates a user.
-  - `login(data)` validates credentials and returns a JWT.
-
-- `repository.js`
-  - `create(data)` inserts a user into the `users` table.
-  - `findByEmail(email)` finds a user by email.
-
-#### Product module (`src/modules/product`)
-
-- `routes.js`
-  - Registers product routes:
-    - `POST /api/products`
-    - `GET /api/products`
-
-- `controller.js`
-  - Handles request/response and passes requests to service methods.
-
-- `service.js`
-  - `create(data)` forwards product creation.
-  - `getAll()` returns all products.
-
-- `repository.js`
-  - `create(data)` inserts a product into the `products` table.
-  - `getAll()` retrieves product rows.
-
-### 4. Utility helpers
-
-- `src/utils/hash.js`
-  - `hash(password)` hashes passwords with `bcrypt`.
-  - `compare(password, hash)` compares plaintext and hashed passwords.
-
-- `src/utils/jwt.js`
-  - `generate(payload)` creates a JWT signed with `process.env.JWT_SECRET`.
-
-- `src/middlewares/auth.js`
-  - Middleware to validate bearer tokens.
-  - Not currently mounted in `src/app.js`, but ready for protected routes.
-
-## Setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Create a `.env` file in the project root with these values:
-
-```env
-DB_HOST=localhost
-DB_USER=root
-DB_PASS=your_password
-DB_NAME=your_database
-PORT=3000
-JWT_SECRET=your_jwt_secret
-```
-
-3. Run database migrations:
-
-```bash
-npm run migrate
-```
-
-4. Start the server:
-
-```bash
-npm run dev
-```
-
-or for production:
-
-```bash
-npm start
-```
-
-## Docker and Load Balancing
-
-This project includes Docker support and an Apache load balancer configuration.
-
-1. Build and start all services:
-
-```bash
-docker compose up --build
-```
-
-2. The API is available through Apache at:
-
-```text
-http://localhost:8080
-```
-
-3. Apache forwards requests to two Node.js app replicas (`app1` and `app2`).
-
-4. Run migrations from the container:
-
-```bash
-docker compose exec app1 npm run migrate
-```
-
-5. Stop the stack:
-
-```bash
-docker compose down
-```
-
-> The `docker-compose.yml` service names are `app1`, `app2`, `db`, and `apache`.
-
-## Available commands
-
-- `npm install`
-  - Install project dependencies.
-
-- `npm run dev`
-  - Start the server with `nodemon` for auto-reloading during development.
-
-- `npm start`
-  - Start the server with plain Node.js.
-
-- `npm run migrate`
-  - Execute pending database migrations.
-
-## API usage
-
-### User endpoints
-
-- Register a new user:
-
-```http
-POST /api/users/register
-Content-Type: application/json
-
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "password123"
-}
-```
-
-- Login an existing user:
-
-```http
-POST /api/users/login
-Content-Type: application/json
-
-{
-  "email": "john@example.com",
-  "password": "password123"
-}
-```
-
-Response contains a JWT token:
+Create a merchant with `POST /api/admin/merchants`:
 
 ```json
 {
-  "token": "..."
+  "name": "Example Merchant",
+  "mobile": "+919999999999",
+  "email": "merchant@example.com",
+  "companyName": "Example Company",
+  "bankName": "Example Bank",
+  "ifsc": "ABCD0123456",
+  "accountNumber": "123456789012",
+  "aadhaarCard": "123412341234",
+  "panCard": "ABCDE1234F",
+  "gstin": "22AAAAA0000A1Z5",
+  "payinEnabled": true,
+  "payoutEnabled": true,
+  "status": "active",
+  "payinCommission": 0.5,
+  "payoutCommission": 0.5,
+  "directFundCommissionEnabled": true
 }
 ```
 
-### Product endpoints
+The API generates the merchant ID, API token, and a temporary password. The
+token and password are returned only in the create response; securely share
+them with the merchant. The API token is stored as a hash and can be used on
+payment requests with `X-Merchant-Id` and `X-Merchant-Token` headers. The
+merchant password is stored as a bcrypt hash.
 
-- Create a product:
+`GET /api/admin/merchants` lists merchants without bank or identity numbers.
+`GET /api/admin/merchants/:merchantId` returns full details to an admin; bank
+account, Aadhaar, and PAN are encrypted in MySQL and require the data key above.
+The detail response also includes the masked API token, wallet balance, total
+commission, and timestamps. Use `PATCH /api/admin/merchants/:merchantId` to
+update profile/configuration fields, `PATCH /status` with `{"status":"suspended"}`
+to suspend or `{"status":"active"}` to reactivate, and
+`POST /token/reset` to replace the API token. A reset returns the new token once.
+
+Wallet data is calculated from the immutable `merchant_wallet_ledger`:
+`credit` adds to the balance, `debit` subtracts, and `commission` adds to total
+commission without changing the balance. For example, append a wallet credit
+using `POST /api/admin/merchants/:merchantId/ledger`:
+
+```json
+{
+  "type": "credit",
+  "amount": 25000,
+  "reference": "FUND-2026-001",
+  "description": "Approved wallet funding"
+}
+```
+
+Use `"type":"commission"`, `"amount":0`, and a positive `commissionAmount` to
+record commission. Ledger references are unique per merchant and debit entries
+cannot exceed the current wallet balance.
+Merchant account information is stored in `merchants`; business, bank, tax,
+commission, and API credential data is stored in the related
+`merchant_details` table. The wallet ledger is a separate append-only financial
+record. All three tables track dates in the Asia/Kolkata timezone; merchant
+`updatedAt` values change automatically when their corresponding row is updated.
+
+## Project architecture
+
+Each API module uses routes, controllers, services, and repositories. Merchant
+accounts are stored in `merchants`; admin accounts are stored separately in
+`admins`. Merchant passwords and admin passwords are stored as bcrypt hashes.
+Admins have no public registration endpoint; provision them with the
+`admin:create` command.
+
+The admin login token includes `role: "admin"` and cannot be used to access
+merchant payment routes.
+
+Example request:
 
 ```http
-POST /api/products
+POST /api/admin/login
 Content-Type: application/json
 
 {
-  "name": "Example Product",
-  "price": 99.99,
-  "stock": 10
+  "email": "admin@example.com",
+  "password": "your-admin-password"
 }
 ```
-
-- Get all products:
-
-```http
-GET /api/products
-```
-
-## Notes
-
-- Environment variables are loaded by `dotenv` in `src/app.js`.
-- The architecture is designed for separation of concerns:
-  - routes → controllers → services → repositories.
-- To protect routes with JWT authentication, mount `src/middlewares/auth.js` in `src/app.js`.
