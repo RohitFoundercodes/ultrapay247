@@ -173,6 +173,23 @@ function listFilters(query) {
   return { search, direction, status, page, limit, offset };
 }
 
+function presentFlowList(result, filters) {
+  const totalPages = Math.ceil(result.total / filters.limit);
+  return {
+    total: result.total,
+    active: result.active,
+    gateways: result.rows.map(presentListAccount),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total: result.total,
+      totalPages,
+      hasNextPage: filters.page < totalPages,
+      hasPreviousPage: filters.page > 1 && result.total > 0
+    }
+  };
+}
+
 function presentSummary(row) {
   return {
     totalAccounts: Number(row.total_accounts || 0),
@@ -194,18 +211,10 @@ exports.list = async (query) => {
   }
   const filters = listFilters(query);
   const result = await repository.list(filters);
-  const totalPages = Math.ceil(result.total / filters.limit);
   return {
     summary: presentSummary(result.summary),
-    gateways: result.rows.map(presentListAccount),
-    pagination: {
-      page: filters.page,
-      limit: filters.limit,
-      total: result.total,
-      totalPages,
-      hasNextPage: filters.page < totalPages,
-      hasPreviousPage: filters.page > 1 && result.total > 0
-    },
+    payin: presentFlowList(result.payin, filters),
+    payout: presentFlowList(result.payout, filters),
     filters: {
       search: filters.search || null,
       direction: filters.direction || null,

@@ -10,17 +10,17 @@ const columns = {
   status: 'status'
 };
 
-function listConditions(filters) {
+function listConditions(filters, flow) {
   const conditions = [];
-  const values = [];
-  if (filters.direction) {
-    if (filters.direction === 'payin' || filters.direction === 'payout') {
-      conditions.push('direction IN (?, ?)');
-      values.push(filters.direction, 'both');
-    } else {
-      conditions.push('direction=?');
-      values.push(filters.direction);
-    }
+  const values = [flow];
+  conditions.push('direction IN (?, ?)');
+  values.push('both');
+  if (filters.direction === 'payin' || filters.direction === 'payout') {
+    conditions.push('direction IN (?, ?)');
+    values.push(filters.direction, 'both');
+  } else if (filters.direction === 'both') {
+    conditions.push('direction=?');
+    values.push('both');
   }
   if (filters.status) {
     conditions.push('status=?');
@@ -37,11 +37,12 @@ function listConditions(filters) {
   };
 }
 
-exports.list = async (filters) => {
-  const { where, values } = listConditions(filters);
-  const [countResult, accountsResult, summaryResult] = await Promise.all([
+async function listFlow(flow, filters) {
+  const { where, values } = listConditions(filters, flow);
+  const [countResult, accountsResult] = await Promise.all([
     db.query(
-      `SELECT COUNT(*) AS total
+      `SELECT COUNT(*) AS total,
+        SUM(CASE WHEN status='enabled' THEN 1 ELSE 0 END) AS active
        FROM payment_gateway_accounts
        ${where}`,
       values
@@ -54,7 +55,19 @@ exports.list = async (filters) => {
        ORDER BY id DESC
        LIMIT ? OFFSET ?`,
       [...values, filters.limit, filters.offset]
-    ),
+    )
+  ]);
+  return {
+    rows: accountsResult[0],
+    total: Number(countResult[0][0].total),
+    active: Number(countResult[0][0].active || 0)
+  };
+}
+
+exports.list = async (filters) => {
+  const [payin, payout, summaryResult] = await Promise.all([
+    listFlow('payin', filters),
+    listFlow('payout', filters),
     db.query(
       `SELECT COUNT(*) AS total_accounts,
         SUM(CASE WHEN status='enabled' THEN 1 ELSE 0 END) AS active_accounts,
@@ -66,8 +79,8 @@ exports.list = async (filters) => {
     )
   ]);
   return {
-    rows: accountsResult[0],
-    total: Number(countResult[0][0].total),
+    payin,
+    payout,
     summary: summaryResult[0][0]
   };
 };

@@ -393,17 +393,77 @@ startup.
 Gateway settings APIs require an admin JWT. Use them to add custom gateway
 accounts and manage whether each account supports payin, payout, or both:
 
-- `GET /api/admin/gateways` returns overall payin/payout account counts and a
-  filtered, paginated account list. Filters: `search`, `direction` (`payin`,
-  `payout`, or `both`), `status` (`enabled` or `disabled`), `page`, and
-  `limit` (maximum 100). A gateway with direction `both` is included in both
-  payin and payout summary counts.
+- `GET /api/admin/gateways` returns separate `payin` and `payout` objects,
+  each with its own gateways list and pagination, plus overall dashboard
+  counts in `summary`. Filters: `search`, `direction` (`payin`, `payout`, or
+  `both`), `status` (`enabled` or `disabled`), `page`, and `limit` (maximum
+  100). Accounts configured for `both` appear in both lists.
 - `POST /api/admin/gateways` creates a gateway account.
 - `GET /api/admin/gateways/:gatewayId` returns account details, including the
   credential values, to an authenticated admin.
 - `PATCH /api/admin/gateways/:gatewayId` updates provider details, fees,
   payment methods, or replaces credentials.
 - `PATCH /api/admin/gateways/:gatewayId/status` enables or disables an account.
+
+Example list response:
+
+```json
+{
+  "summary": {
+    "totalAccounts": 8,
+    "activeAccounts": 5,
+    "totalPayin": 6,
+    "activePayin": 4,
+    "totalPayout": 5,
+    "activePayout": 3
+  },
+  "payin": {
+    "total": 6,
+    "active": 4,
+    "gateways": [
+      {
+        "id": 1,
+        "providerName": "Razorpay",
+        "code": "RZP_MAIN",
+        "direction": "both",
+        "paymentMethods": ["UPI", "Card"],
+        "chargePercent": 0.5,
+        "status": "enabled",
+        "credentialsConfigured": true,
+        "credentialKeys": ["keyId", "keySecret"],
+        "createdAt": "2026-11-16T14:22:00+05:30",
+        "updatedAt": "2026-11-16T14:22:00+05:30"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 6,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "payout": {
+    "total": 5,
+    "active": 3,
+    "gateways": [],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 5,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "filters": {
+    "search": null,
+    "direction": null,
+    "status": null
+  }
+}
+```
 
 Create a gateway account:
 
