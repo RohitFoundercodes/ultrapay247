@@ -11,6 +11,11 @@ function attachMerchant(req, merchant) {
   req.user = {
     id: merchant.id,
     role: 'merchant',
+    merchantId: merchant.merchant_code || null,
+    name: merchant.name,
+    email: merchant.email,
+    mobile: merchant.mobile,
+    status: merchant.status,
     payinEnabled: Boolean(merchant.payin_enabled),
     payoutEnabled: Boolean(merchant.payout_enabled)
   };
@@ -30,7 +35,9 @@ module.exports = async (req, res, next) => {
       return unauthorized(res);
     }
 
-    if (claims.role && claims.role !== 'merchant') {
+    if (claims.role !== 'merchant' ||
+        (typeof claims.id !== 'number' && typeof claims.id !== 'string') ||
+        !/^[1-9][0-9]*$/.test(String(claims.id))) {
       return res.status(403).json({ error: 'Merchant access required' });
     }
 

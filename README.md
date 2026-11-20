@@ -7,6 +7,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /health`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `GET /api/auth/me`
 - `POST /api/admin/login`
 - `POST /api/admin/merchants`
 - `GET /api/admin/merchants`
@@ -36,6 +37,49 @@ Payment endpoints require `Authorization: Bearer <token>`.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
 Merchant management endpoints require an admin JWT. Payment endpoints accept a
 merchant JWT or the generated `X-Merchant-Id` and `X-Merchant-Token` headers.
+
+## Merchant authentication
+
+Merchant sign-in is available at `POST /api/auth/login`. It accepts the email
+and password assigned when the merchant account is created:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant@example.com",
+  "password": "<merchant-password>"
+}
+```
+
+On success, the response contains a seven-day merchant-role bearer token and a
+safe merchant profile (never a password hash):
+
+```json
+{
+  "token": "<merchant-jwt>",
+  "tokenType": "Bearer",
+  "expiresIn": "7d",
+  "merchant": {
+    "id": 123,
+    "merchantId": "MRC_0123456789ABCDEF01234567",
+    "name": "Example Merchant",
+    "email": "merchant@example.com",
+    "mobile": "+919999999999",
+    "status": "active",
+    "payinEnabled": true,
+    "payoutEnabled": true
+  }
+}
+```
+
+Use the token on merchant-authenticated APIs as
+`Authorization: Bearer <merchant-jwt>`. `GET /api/auth/me` validates the
+current merchant token and returns the signed-in merchant profile. Admin
+tokens are rejected by merchant-authenticated APIs. Merchant JWTs are issued
+only for active merchant accounts; invalid credentials and inactive accounts
+receive the same `401 Invalid credentials` response.
 
 ## Setup
 

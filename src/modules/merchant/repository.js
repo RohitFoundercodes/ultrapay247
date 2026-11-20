@@ -315,7 +315,8 @@ exports.createLedgerEntry = async (merchantCode, entry) => {
 
 exports.findForAuthentication = async (id) => {
   const [rows] = await db.query(
-    `SELECT m.id, m.status, d.payin_enabled, d.payout_enabled
+    `SELECT m.id, m.name, m.email, m.status, d.merchant_code, d.mobile,
+      d.payin_enabled, d.payout_enabled
      FROM merchants m
      LEFT JOIN merchant_details d ON d.merchant_id=m.id
      WHERE m.id=?`,

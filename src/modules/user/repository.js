@@ -8,7 +8,14 @@ exports.create = async(data)=>{
   return {id:res.insertId,...data};
 };
 
-exports.findByEmail = async(email)=>{
-  const [rows] = await db.query("SELECT * FROM merchants WHERE email=?",[email]);
+exports.findByEmail = async (email) => {
+  const [rows] = await db.query(
+    `SELECT m.id, m.name, m.email, m.password, m.status,
+      d.merchant_code, d.mobile, d.payin_enabled, d.payout_enabled
+     FROM merchants m
+     LEFT JOIN merchant_details d ON d.merchant_id=m.id
+     WHERE m.email=?`,
+    [email]
+  );
   return rows[0];
 };
