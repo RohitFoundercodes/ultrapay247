@@ -3,6 +3,7 @@ const {hash,compare} = require('../../utils/hash');
 const {generate} = require('../../utils/jwt');
 
 exports.register = async(data)=>{
+
   if (!data.name || !data.email || !data.password) {
     const error = new Error('Name, email and password are required');
     error.status = 400;

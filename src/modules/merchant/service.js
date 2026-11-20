@@ -41,6 +41,59 @@ function optionalBoolean(value, label, defaultValue) {
   return value;
 }
 
+function queryString(query, key) {
+  const value = query[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') invalid(`${key} must be a string`);
+  return value;
+}
+
+function paginationNumber(value, label, defaultValue, maximum) {
+  if (value === undefined) return defaultValue;
+  if (!/^[0-9]+$/.test(value)) invalid(`${label} must be a positive integer`);
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < 1 || number > maximum) {
+    invalid(`${label} must be between 1 and ${maximum}`);
+  }
+  return number;
+}
+
+function listOptions(query) {
+  if (!query || typeof query !== 'object' || Array.isArray(query)) {
+    invalid('Merchant list filters must be query parameters');
+  }
+
+  const page = paginationNumber(queryString(query, 'page'), 'Page', 1, Number.MAX_SAFE_INTEGER);
+  const limit = paginationNumber(queryString(query, 'limit'), 'Limit', 20, 100);
+  if (!Number.isSafeInteger((page - 1) * limit)) invalid('Page is too large');
+
+  const searchValue = queryString(query, 'search');
+  const search = searchValue === undefined ? undefined : searchValue.trim();
+  if (search && search.length > 100) invalid('Search must be at most 100 characters');
+
+  const status = queryString(query, 'status');
+  if (status !== undefined && !['active', 'inactive', 'suspended'].includes(status)) {
+    invalid('Status must be active, inactive, or suspended');
+  }
+
+  function filterBoolean(key) {
+    const value = queryString(query, key);
+    if (value === undefined) return undefined;
+    if (value !== 'true' && value !== 'false') invalid(`${key} must be true or false`);
+    return value === 'true';
+  }
+
+  return {
+    page,
+    limit,
+    offset: (page - 1) * limit,
+    search: search || undefined,
+    status,
+    payinEnabled: filterBoolean('payinEnabled'),
+    payoutEnabled: filterBoolean('payoutEnabled')
+  };
+}
+
 function present(row) {
   return {
     id: row.id,
@@ -273,9 +326,27 @@ exports.create = async (input) => {
   };
 };
 
-exports.getAll = async () => {
-  const rows = await repository.getAll();
-  return rows.map(present);
+exports.getAll = async (query) => {
+  const options = listOptions(query);
+  const { rows, total } = await repository.getAll(options);
+  const totalPages = Math.ceil(total / options.limit);
+  return {
+    merchants: rows.map(present),
+    pagination: {
+      page: options.page,
+      limit: options.limit,
+      total,
+      totalPages,
+      hasNextPage: options.page < totalPages,
+      hasPreviousPage: options.page > 1 && total > 0
+    },
+    filters: {
+      search: options.search || null,
+      status: options.status || null,
+      payinEnabled: options.payinEnabled === undefined ? null : options.payinEnabled,
+      payoutEnabled: options.payoutEnabled === undefined ? null : options.payoutEnabled
+    }
+  };
 };
 
 exports.getByCode = async (merchantCode) => {

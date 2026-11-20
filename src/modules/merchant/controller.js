@@ -10,7 +10,7 @@ exports.create = async (req, res, next) => {
 
 exports.getAll = async (req, res, next) => {
   try {
-    res.json({ merchants: await service.getAll() });
+    res.json(await service.getAll(req.query));
   } catch (error) {
     next(error);
   }

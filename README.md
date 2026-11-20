@@ -116,6 +116,39 @@ payment requests with `X-Merchant-Id` and `X-Merchant-Token` headers. The
 merchant password is stored as a bcrypt hash.
 
 `GET /api/admin/merchants` lists merchants without bank or identity numbers.
+The list supports pagination and filters: `page` (default `1`), `limit` (default
+`20`, maximum `100`), `search` (matches merchant ID, name, email, mobile, and
+company name), `status` (`active`, `inactive`, or `suspended`),
+`payinEnabled` (`true` or `false`), and `payoutEnabled` (`true` or `false`).
+For example:
+
+```http
+GET /api/admin/merchants?search=example&status=active&payinEnabled=true&page=2&limit=10
+```
+
+The response contains the merchant records, pagination totals/page flags, and
+the applied filters:
+
+```json
+{
+  "merchants": [],
+  "pagination": {
+    "page": 2,
+    "limit": 10,
+    "total": 0,
+    "totalPages": 0,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  },
+  "filters": {
+    "search": "example",
+    "status": "active",
+    "payinEnabled": true,
+    "payoutEnabled": null
+  }
+}
+```
+
 `GET /api/admin/merchants/:merchantId` returns full details to an admin; bank
 account, Aadhaar, and PAN are encrypted in MySQL and require the data key above.
 The detail response also includes the masked API token, wallet balance, total

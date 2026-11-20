@@ -60,28 +60,65 @@ exports.create = async (data) => {
   }
 };
 
-exports.getAll = async () => {
-  const [rows] = await db.query(
-    `SELECT m.id, d.merchant_code, m.name, m.email, d.mobile, d.company_name,
-      m.status, d.payin_enabled, d.payout_enabled, d.payin_commission,
-      d.payout_commission, d.direct_fund_commission_enabled,
-      m.created_at, m.updated_at, d.created_at AS details_created_at,
-      d.updated_at AS details_updated_at, d.merchant_token_last4,
-      COALESCE(w.wallet_balance, 0) AS wallet_balance,
-      COALESCE(w.total_commission, 0) AS total_commission
-     FROM merchants m
-     LEFT JOIN merchant_details d ON d.merchant_id=m.id
-     LEFT JOIN (
-       SELECT merchant_id,
-         SUM(CASE WHEN entry_type='credit' THEN amount
-           WHEN entry_type='debit' THEN -amount ELSE 0 END) AS wallet_balance,
-         SUM(commission_amount) AS total_commission
-       FROM merchant_wallet_ledger
-       GROUP BY merchant_id
-     ) w ON w.merchant_id=m.id
-     ORDER BY m.id DESC`
-  );
-  return rows;
+exports.getAll = async ({ search, status, payinEnabled, payoutEnabled, limit, offset }) => {
+  const conditions = [];
+  const values = [];
+  if (search) {
+    const escapedSearch = search.replace(/[!%_]/g, '!$&');
+    conditions.push(`(
+      m.name LIKE ? ESCAPE '!' OR m.email LIKE ? ESCAPE '!'
+      OR d.mobile LIKE ? ESCAPE '!' OR d.company_name LIKE ? ESCAPE '!'
+      OR d.merchant_code LIKE ? ESCAPE '!'
+    )`);
+    const searchValue = `%${escapedSearch}%`;
+    values.push(searchValue, searchValue, searchValue, searchValue, searchValue);
+  }
+  if (status !== undefined) {
+    conditions.push('m.status=?');
+    values.push(status);
+  }
+  if (payinEnabled !== undefined) {
+    conditions.push('d.payin_enabled=?');
+    values.push(payinEnabled);
+  }
+  if (payoutEnabled !== undefined) {
+    conditions.push('d.payout_enabled=?');
+    values.push(payoutEnabled);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const [countResult, merchantResult] = await Promise.all([
+    db.query(
+      `SELECT COUNT(*) AS total
+       FROM merchants m
+       LEFT JOIN merchant_details d ON d.merchant_id=m.id
+       ${where}`,
+      values
+    ),
+    db.query(
+      `SELECT m.id, d.merchant_code, m.name, m.email, d.mobile, d.company_name,
+        m.status, d.payin_enabled, d.payout_enabled, d.payin_commission,
+        d.payout_commission, d.direct_fund_commission_enabled,
+        m.created_at, m.updated_at, d.created_at AS details_created_at,
+        d.updated_at AS details_updated_at, d.merchant_token_last4,
+        COALESCE(w.wallet_balance, 0) AS wallet_balance,
+        COALESCE(w.total_commission, 0) AS total_commission
+       FROM merchants m
+       LEFT JOIN merchant_details d ON d.merchant_id=m.id
+       LEFT JOIN (
+         SELECT merchant_id,
+           SUM(CASE WHEN entry_type='credit' THEN amount
+             WHEN entry_type='debit' THEN -amount ELSE 0 END) AS wallet_balance,
+           SUM(commission_amount) AS total_commission
+         FROM merchant_wallet_ledger
+         GROUP BY merchant_id
+       ) w ON w.merchant_id=m.id
+       ${where}
+       ORDER BY m.id DESC
+       LIMIT ? OFFSET ?`,
+      [...values, limit, offset]
+    )
+  ]);
+  return { rows: merchantResult[0], total: Number(countResult[0][0].total) };
 };
 
 exports.getByCode = async (merchantCode) => {
