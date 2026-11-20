@@ -257,11 +257,23 @@ exports.create = async (input) => {
   const payinCommission = percentage(input.payinCommission, 'Payin commission');
   const payoutCommission = percentage(input.payoutCommission, 'Payout commission');
 
+  let temporaryPassword;
+  let merchantPassword;
+  if (input.password === undefined) {
+    temporaryPassword = crypto.randomBytes(24).toString('base64url');
+    merchantPassword = temporaryPassword;
+  } else {
+    if (typeof input.password !== 'string' || input.password.length < 12 ||
+        Buffer.byteLength(input.password, 'utf8') > 72) {
+      invalid('Password must be at least 12 characters and at most 72 UTF-8 bytes');
+    }
+    merchantPassword = input.password;
+  }
+
   const merchantCode = `MRC_${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
   const merchantToken = `up_live_${crypto.randomBytes(32).toString('hex')}`;
   const merchantTokenLast4 = merchantToken.slice(-4);
-  const temporaryPassword = crypto.randomBytes(24).toString('base64url');
-  const passwordHash = await hash(temporaryPassword);
+  const passwordHash = await hash(merchantPassword);
   const merchantTokenHash = crypto.createHash('sha256').update(merchantToken).digest('hex');
 
   let merchant;
@@ -297,6 +309,8 @@ exports.create = async (input) => {
     throw error;
   }
 
+  const credentials = { merchantToken };
+  if (temporaryPassword) credentials.temporaryPassword = temporaryPassword;
   return {
     merchant: {
       ...present({
@@ -327,7 +341,7 @@ exports.create = async (input) => {
       panCard,
       gstin
     },
-    credentials: { merchantToken, temporaryPassword }
+    credentials
   };
 };
 

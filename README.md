@@ -148,6 +148,7 @@ Create a merchant with `POST /api/admin/merchants`:
   "name": "Example Merchant",
   "mobile": "+919999999999",
   "email": "merchant@example.com",
+  "password": "Choose-A-Strong-Password",
   "companyName": "Example Company",
   "bankName": "Example Bank",
   "ifsc": "ABCD0123456",
@@ -164,11 +165,13 @@ Create a merchant with `POST /api/admin/merchants`:
 }
 ```
 
-The API generates the merchant ID, API token, and a temporary password. The
-token and password are returned only in the create response; securely share
-them with the merchant. The API token is stored as a hash and can be used on
-payment requests with `X-Merchant-Id` and `X-Merchant-Token` headers. The
-merchant password is stored as a bcrypt hash.
+The `password` field is optional and must be at least 12 characters and no
+more than 72 UTF-8 bytes. If supplied, it is stored as a bcrypt hash and is
+never returned by the API. If omitted, the API generates a temporary password
+and returns it once in the create response; securely share it with the
+merchant. In both cases the API generates the merchant ID and API token. The
+token is returned only in the create response, stored as a hash, and can be
+used on payment requests with `X-Merchant-Id` and `X-Merchant-Token` headers.
 
 `GET /api/admin/merchants` lists merchants without bank or identity numbers.
 The list supports pagination and filters: `page` (default `1`), `limit` (default
