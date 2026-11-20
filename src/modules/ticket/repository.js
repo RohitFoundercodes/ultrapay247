@@ -131,18 +131,6 @@ exports.list = async (filters, merchantId) => {
   return { rows: ticketsResult[0], total: Number(countResult[0][0].total) };
 };
 
-exports.getExportRows = async (filters) => {
-  const { where, values } = addListFilters(filters);
-  const [rows] = await db.query(
-    `${ticketSelect}
-     ${where}
-     ORDER BY t.created_at DESC, t.id DESC
-     LIMIT ?`,
-    [...values, filters.maxRows + 1]
-  );
-  return rows;
-};
-
 exports.getStats = async (filters) => {
   const { where, values } = addListFilters(filters);
   const [rows] = await db.query(

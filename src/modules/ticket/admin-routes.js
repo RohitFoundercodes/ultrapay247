@@ -2,7 +2,6 @@ const router = require('express').Router();
 const controller = require('./controller');
 
 router.get('/stats', controller.stats);
-router.get('/export', controller.exportAdmin);
 router.get('/', controller.listAdmin);
 router.get('/:ticketId', controller.getAdminTicket);
 router.post('/:ticketId/messages', controller.replyAdmin);

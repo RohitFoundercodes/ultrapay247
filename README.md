@@ -20,7 +20,6 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/admin/merchants/:merchantId/ledger`
 - `GET /api/admin/tickets`
 - `GET /api/admin/tickets/stats`
-- `GET /api/admin/tickets/export`
 - `GET /api/admin/tickets/:ticketId`
 - `POST /api/admin/tickets/:ticketId/messages`
 - `PATCH /api/admin/tickets/:ticketId/status`
@@ -299,9 +298,62 @@ or serve file bytes.
 
 Admin ticket-management endpoints require an admin JWT:
 
-- `GET /api/admin/tickets` lists tickets with `page`, `limit` (maximum 100),
+- `GET /api/admin/tickets` returns status counts and the filtered ticket list.
+  It accepts `page`, `limit` (maximum 100),
   `search` (ticket ID, merchant ID/name, or subject), `category`, `priority`,
   `status`, and optional `from`/`to` dates (`YYYY-MM-DD`).
+- The list response includes `summary` counts for total, open, in-progress,
+  resolved, and closed tickets within the selected date range, along with
+  `tickets`, pagination metadata, and the applied filters.
+- Example response:
+
+```json
+{
+  "summary": {
+    "from": "2026-11-01",
+    "to": "2026-11-16",
+    "total": 248,
+    "counts": {
+      "open": 76,
+      "inProgress": 42,
+      "resolved": 112,
+      "closed": 18
+    }
+  },
+  "tickets": [
+    {
+      "ticketId": "TKT000248",
+      "merchantId": "MCH0001",
+      "merchantName": "Alpha Digital Pvt. Ltd.",
+      "merchantEmail": "support@example.com",
+      "merchantMobile": "+919999999999",
+      "subject": "Payout not received",
+      "category": "Payout Issue",
+      "priority": "high",
+      "status": "open",
+      "createdAt": "2026-11-16T10:00:00+05:30",
+      "updatedAt": "2026-11-16T10:00:00+05:30"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 248,
+    "totalPages": 13,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  },
+  "filters": {
+    "search": null,
+    "category": null,
+    "priority": null,
+    "status": null,
+    "from": "2026-11-01",
+    "to": "2026-11-16"
+  }
+}
+```
+
 - `GET /api/admin/tickets/stats?from=2026-11-01&to=2026-11-16` returns total,
   open, in-progress, resolved, and closed counts for the selected date range.
 - `GET /api/admin/tickets/:ticketId` returns ticket, merchant, attachment, and
@@ -309,9 +361,6 @@ Admin ticket-management endpoints require an admin JWT:
 - `POST /api/admin/tickets/:ticketId/messages` adds an admin reply.
 - `PATCH /api/admin/tickets/:ticketId/status` changes status to `open`,
   `in_progress`, `resolved`, or `closed`.
-- `GET /api/admin/tickets/export?format=csv` or
-  `GET /api/admin/tickets/export?format=xlsx` downloads a filtered export.
-  Exports are limited to 10,000 tickets; narrow the filters for larger sets.
 
 Ticket IDs are returned in `TKT000001` format. Priority values are `low`,
 `medium`, or `high`; new tickets default to `medium` and `open`. Closed tickets

@@ -1,11 +1,9 @@
 const repository = require('./repository');
-const createWorkbook = require('./xlsx');
 const { toKolkataIso } = require('../../utils/time');
 
 const ticketStatuses = new Set(['open', 'in_progress', 'resolved', 'closed']);
 const ticketPriorities = new Set(['low', 'medium', 'high']);
 const maximumPageSize = 100;
-const maximumExportRows = 10000;
 const maximumAttachmentBytes = 25 * 1024 * 1024;
 
 function invalid(message, status = 400) {
@@ -77,7 +75,6 @@ function listFilters(query, includePagination) {
 
   const filters = { search: search || undefined, category, priority, status, from, to };
   if (!includePagination) {
-    filters.maxRows = maximumExportRows;
     return filters;
   }
 
@@ -283,9 +280,26 @@ exports.updateStatus = async (ticketIdValue, status) => {
 
 exports.getAdminTickets = async (query) => {
   const filters = listFilters(query, true);
-  const { rows, total } = await repository.list(filters);
+  const [listResult, statRows] = await Promise.all([
+    repository.list(filters),
+    repository.getStats({ from: filters.from, to: filters.to })
+  ]);
+  const { rows, total } = listResult;
   const totalPages = Math.ceil(total / filters.limit);
+  const counts = { open: 0, in_progress: 0, resolved: 0, closed: 0 };
+  for (const row of statRows) counts[row.status] = Number(row.total);
   return {
+    summary: {
+      from: filters.from || null,
+      to: filters.to || null,
+      total: Object.values(counts).reduce((sum, count) => sum + count, 0),
+      counts: {
+        open: counts.open,
+        inProgress: counts.in_progress,
+        resolved: counts.resolved,
+        closed: counts.closed
+      }
+    },
     tickets: rows.map(presentSummary),
     pagination: {
       page: filters.page,
@@ -321,59 +335,5 @@ exports.getStats = async (query) => {
       resolved: counts.resolved,
       closed: counts.closed
     }
-  };
-};
-
-function exportRows(rows) {
-  return rows.map((row) => ({
-    ticketId: presentTicketId(row.id),
-    merchantId: row.merchant_code,
-    merchantName: row.merchant_name,
-    subject: row.subject,
-    category: row.category,
-    priority: row.priority,
-    status: row.status,
-    createdAt: toKolkataIso(row.created_at)
-  }));
-}
-
-function csvEscape(value) {
-  let text = String(value === null || value === undefined ? '' : value);
-  if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-exports.exportTickets = async (query, format) => {
-  if (format !== 'csv' && format !== 'xlsx') invalid('Format must be csv or xlsx');
-  const filters = listFilters(query, false);
-  const rows = await repository.getExportRows(filters);
-  if (rows.length > maximumExportRows) {
-    invalid(`Export is limited to ${maximumExportRows} tickets; narrow the filters`, 413);
-  }
-  const tickets = exportRows(rows);
-  if (format === 'csv') {
-    const headers = [
-      'Ticket ID', 'Merchant ID', 'Merchant Name', 'Subject',
-      'Category', 'Priority', 'Status', 'Created At'
-    ];
-    const fields = [
-      'ticketId', 'merchantId', 'merchantName', 'subject',
-      'category', 'priority', 'status', 'createdAt'
-    ];
-    const csv = [
-      headers.map(csvEscape).join(','),
-      ...tickets.map(ticket => fields.map(field => csvEscape(ticket[field])).join(','))
-    ].join('\r\n');
-    return {
-      fileName: 'support-tickets.csv',
-      contentType: 'text/csv; charset=utf-8',
-      body: Buffer.from(`\uFEFF${csv}`, 'utf8')
-    };
-  }
-
-  return {
-    fileName: 'support-tickets.xlsx',
-    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    body: createWorkbook(tickets)
   };
 };

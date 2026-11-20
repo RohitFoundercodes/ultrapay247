@@ -16,17 +16,6 @@ exports.stats = async (req, res, next) => {
   }
 };
 
-exports.exportAdmin = async (req, res, next) => {
-  try {
-    const file = await service.exportTickets(req.query, req.query.format);
-    res.set('Content-Type', file.contentType);
-    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
-    res.send(file.body);
-  } catch (error) {
-    next(error);
-  }
-};
-
 exports.getAdminTicket = async (req, res, next) => {
   try {
     res.json(await service.getAdminTicket(req.params.ticketId));
