@@ -23,6 +23,11 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/tickets/:ticketId`
 - `POST /api/admin/tickets/:ticketId/messages`
 - `PATCH /api/admin/tickets/:ticketId/status`
+- `GET /api/admin/gateways`
+- `POST /api/admin/gateways`
+- `GET /api/admin/gateways/:gatewayId`
+- `PATCH /api/admin/gateways/:gatewayId`
+- `PATCH /api/admin/gateways/:gatewayId/status`
 - `GET /api/tickets`
 - `POST /api/tickets`
 - `GET /api/tickets/:ticketId`
@@ -383,13 +388,61 @@ cannot receive further replies. The migration creates `support_tickets`,
 `support_ticket_messages`, and `support_ticket_attachments` automatically at
 startup.
 
+## Gateway accounts and settings
+
+Gateway settings APIs require an admin JWT. Use them to add custom gateway
+accounts and manage whether each account supports payin, payout, or both:
+
+- `GET /api/admin/gateways` returns overall payin/payout account counts and a
+  filtered, paginated account list. Filters: `search`, `direction` (`payin`,
+  `payout`, or `both`), `status` (`enabled` or `disabled`), `page`, and
+  `limit` (maximum 100). A gateway with direction `both` is included in both
+  payin and payout summary counts.
+- `POST /api/admin/gateways` creates a gateway account.
+- `GET /api/admin/gateways/:gatewayId` returns account details, including the
+  credential values, to an authenticated admin.
+- `PATCH /api/admin/gateways/:gatewayId` updates provider details, fees,
+  payment methods, or replaces credentials.
+- `PATCH /api/admin/gateways/:gatewayId/status` enables or disables an account.
+
+Create a gateway account:
+
+```http
+POST /api/admin/gateways
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "providerName": "Razorpay",
+  "code": "RZP_MAIN",
+  "direction": "both",
+  "paymentMethods": ["UPI", "Card", "Net Banking"],
+  "chargePercent": 0.5,
+  "credentials": {
+    "keyId": "<gateway-key-id>",
+    "keySecret": "<gateway-key-secret>",
+    "webhookSecret": "<gateway-webhook-secret>"
+  },
+  "status": "disabled"
+}
+```
+
+Provider names and credential keys are custom. Credentials must be supplied as
+string values, are encrypted at rest using `MERCHANT_DATA_KEY`, and are never
+included in the gateway list response. The create, detail, and update
+responses return the full credentials to the authenticated admin. Keep
+administrator access restricted and protect these responses. New accounts
+default to `disabled`. These endpoints manage settings only; they do not
+currently route payment requests through gateway provider APIs.
+
 ## Project architecture
 
 Each API module uses routes, controllers, services, and repositories. Merchant
 accounts are stored in `merchants`; admin accounts are stored separately in
 `admins`. Tickets, ticket replies, and attachment metadata are stored in
 `support_tickets`, `support_ticket_messages`, and
-`support_ticket_attachments`. Merchant passwords and admin passwords are stored as bcrypt hashes.
+`support_ticket_attachments`. Gateway account configuration is stored in
+`payment_gateway_accounts`. Merchant passwords and admin passwords are stored as bcrypt hashes.
 Admins have no public registration endpoint; provision them with the
 `admin:create` command.
 
