@@ -359,6 +359,21 @@ Admin ticket-management endpoints require an admin JWT:
 - `GET /api/admin/tickets/:ticketId` returns ticket, merchant, attachment, and
   conversation details.
 - `POST /api/admin/tickets/:ticketId/messages` adds an admin reply.
+  To attach an image by URL only, include `imageUrl` in the JSON body:
+
+```http
+POST /api/admin/tickets/TKT000245/messages
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "message": "We found the issue. Please see the screenshot.",
+  "imageUrl": "https://files.example.com/ticket-screenshot.png"
+}
+```
+
+  `imageUrl` must be an HTTPS URL. The API stores the URL as attachment
+  metadata; it does not upload, fetch, or store the image file itself.
 - `PATCH /api/admin/tickets/:ticketId/status` changes status to `open`,
   `in_progress`, `resolved`, or `closed`.
 

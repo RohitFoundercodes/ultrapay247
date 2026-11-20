@@ -169,13 +169,58 @@ function validateAttachments(attachments) {
   });
 }
 
-function validateMessage(input) {
+function validateMessage(input, allowImageUrl = false) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A ticket message object is required');
+  }
+  const allowedFields = allowImageUrl
+    ? new Set(['message', 'attachments', 'imageUrl'])
+    : new Set(['message', 'attachments']);
+  for (const field of Object.keys(input)) {
+    if (!allowedFields.has(field)) invalid(`Field ${field} is not supported`);
   }
   return {
     message: requiredString(input, 'message', 'Message', 10000),
     attachments: validateAttachments(input.attachments)
+  };
+}
+
+function validateAdminMessage(input) {
+  const result = validateMessage(input, true);
+  if (input.imageUrl === undefined) return result;
+  if (typeof input.imageUrl !== 'string' || !input.imageUrl.trim() ||
+      input.imageUrl.trim().length > 2048) {
+    invalid('Image URL must be a non-empty URL of at most 2048 characters');
+  }
+  if (result.attachments.length >= 10) {
+    invalid('A reply can contain at most 10 attachments');
+  }
+
+  let imageUrl;
+  try {
+    imageUrl = new URL(input.imageUrl.trim());
+  } catch (error) {
+    invalid('Image URL must be a valid HTTPS URL');
+  }
+  if (imageUrl.protocol !== 'https:' || imageUrl.username || imageUrl.password) {
+    invalid('Image URL must be a valid HTTPS URL without embedded credentials');
+  }
+
+  let fileName = imageUrl.pathname.split('/').pop() || 'image';
+  try {
+    fileName = decodeURIComponent(fileName);
+  } catch (error) {
+    invalid('Image URL contains an invalid file name');
+  }
+  fileName = fileName.replace(/[\u0000-\u001f\u007f\\/]/g, '_').slice(0, 255) || 'image';
+  return {
+    ...result,
+    attachments: result.attachments.concat({
+      fileName,
+      mimeType: 'image/*',
+      sizeBytes: 0,
+      url: imageUrl.toString()
+    })
   };
 }
 
@@ -262,7 +307,9 @@ exports.getAdminTicket = async (ticketId) =>
 
 exports.reply = async (ticketIdValue, actor, input) => {
   const ticketId = parseTicketId(ticketIdValue);
-  const { message, attachments } = validateMessage(input);
+  const { message, attachments } = actor.type === 'admin'
+    ? validateAdminMessage(input)
+    : validateMessage(input);
   const result = await repository.addMessage(ticketId, actor, message, attachments);
   if (result.notFound) invalid('Ticket not found', 404);
   if (result.closed) invalid('Closed tickets cannot receive new replies', 409);
