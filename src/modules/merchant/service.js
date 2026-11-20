@@ -120,17 +120,22 @@ function present(row) {
   };
 }
 
-function normalizeUpdate(input) {
+const merchantUpdateFields = new Set([
+  'name', 'mobile', 'email', 'companyName', 'bankName', 'ifsc',
+  'accountNumber', 'aadhaarCard', 'panCard', 'gstin', 'status',
+  'payinEnabled', 'payoutEnabled', 'payinCommission', 'payoutCommission',
+  'directFundCommissionEnabled'
+]);
+const merchantDetailUpdateFields = new Set([
+  'mobile', 'companyName', 'bankName', 'ifsc',
+  'accountNumber', 'aadhaarCard', 'panCard', 'gstin'
+]);
+
+function normalizeUpdate(input, allowedFields = merchantUpdateFields) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A merchant update object is required');
   }
 
-  const allowedFields = new Set([
-    'name', 'mobile', 'email', 'companyName', 'bankName', 'ifsc',
-    'accountNumber', 'aadhaarCard', 'panCard', 'gstin', 'status',
-    'payinEnabled', 'payoutEnabled', 'payinCommission', 'payoutCommission',
-    'directFundCommissionEnabled'
-  ]);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) invalid(`Field ${field} cannot be updated`);
   }
@@ -368,8 +373,8 @@ exports.getByCode = async (merchantCode) => {
   };
 };
 
-exports.updateByCode = async (merchantCode, input) => {
-  const { merchantUpdates, detailUpdates } = normalizeUpdate(input);
+async function updateMerchant(merchantCode, input, allowedFields) {
+  const { merchantUpdates, detailUpdates } = normalizeUpdate(input, allowedFields);
   try {
     const updated = await repository.updateByCode(merchantCode, merchantUpdates, detailUpdates);
     if (!updated) {
@@ -386,7 +391,13 @@ exports.updateByCode = async (merchantCode, input) => {
     throw error;
   }
   return exports.getByCode(merchantCode);
-};
+}
+
+exports.updateByCode = (merchantCode, input) =>
+  updateMerchant(merchantCode, input, merchantUpdateFields);
+
+exports.updateDetails = (merchantCode, input) =>
+  updateMerchant(merchantCode, input, merchantDetailUpdateFields);
 
 exports.resetToken = async (merchantCode) => {
   const merchantToken = `up_live_${crypto.randomBytes(32).toString('hex')}`;

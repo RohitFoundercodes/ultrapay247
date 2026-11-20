@@ -32,6 +32,14 @@ exports.update = async (req, res, next) => {
   }
 };
 
+exports.updateDetails = async (req, res, next) => {
+  try {
+    res.json(await service.updateDetails(req.params.merchantId, req.body));
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.updateStatus = async (req, res, next) => {
   try {
     res.json(await service.updateByCode(req.params.merchantId, { status: req.body.status }));

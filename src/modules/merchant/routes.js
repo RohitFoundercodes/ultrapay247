@@ -7,6 +7,7 @@ router.get('/:merchantId/ledger', controller.getLedger);
 router.post('/:merchantId/ledger', controller.createLedgerEntry);
 router.post('/:merchantId/token/reset', controller.resetToken);
 router.patch('/:merchantId/status', controller.updateStatus);
+router.patch('/:merchantId/details', controller.updateDetails);
 router.patch('/:merchantId', controller.update);
 router.get('/:merchantId', controller.getByCode);
 
