@@ -1,23 +1,35 @@
 const db = require('../../config/db');
 
 exports.create = async (data) => {
-  const [[commissionRow]] = await db.query(
+  const [merchantRows] = await db.query(
     `SELECT payin_commission
      FROM merchant_details
      WHERE merchant_id=?`,
     [data.merchantId]
   );
-  const commissionPercent = commissionRow ? Number(commissionRow.payin_commission) : 0;
+  if (!merchantRows.length) {
+    const error = new Error('Merchant not found');
+    error.status = 404;
+    throw error;
+  }
+  const commissionPercent = Number(merchantRows[0].payin_commission);
   const commissionAmount = Math.round(data.amount * commissionPercent) / 100;
   const netAmount = Math.round((data.amount - commissionAmount) * 100) / 100;
 
   let providerName = data.providerName;
-  if (data.gatewayAccountId && !providerName) {
+  if (data.gatewayAccountId) {
     const [gatewayRows] = await db.query(
-      `SELECT provider_name FROM payment_gateway_accounts WHERE id=?`,
+      `SELECT provider_name
+       FROM payment_gateway_accounts
+       WHERE id=? AND status='enabled' AND direction IN ('payin', 'both')`,
       [data.gatewayAccountId]
     );
-    providerName = gatewayRows[0]?.provider_name || null;
+    if (!gatewayRows.length) {
+      const error = new Error('Payin gateway account not found or disabled');
+      error.status = 400;
+      throw error;
+    }
+    if (!providerName) providerName = gatewayRows[0].provider_name;
   }
 
   const [result] = await db.query(

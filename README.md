@@ -32,6 +32,8 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/payin/transactions`
 - `GET /api/admin/payin/transactions/:id`
 - `GET /api/admin/payin/export.csv`
+- `POST /api/payin/request`
+- `GET /api/payin/request/:id`
 - `GET /api/admin/payout/stats`
 - `GET /api/admin/payout/transactions`
 - `GET /api/admin/payout/transactions/:id`
@@ -49,12 +51,40 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/payouts`
 - `GET /api/payouts/:id`
 
-Payment and payout endpoints accept a merchant JWT or the generated
+Payin, payment, and payout endpoints accept a merchant JWT or the generated
 `X-Merchant-Id` and `X-Merchant-Token` headers. Payout requests require payout
 to be enabled for the merchant. Admin payout endpoints require an admin JWT.
 Payout creation records a pending request; it does not initiate a bank transfer.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
 Merchant management endpoints require an admin JWT.
+
+## Payin requests
+
+Create a payin request with `POST /api/payin/request`. It requires merchant
+authentication and payin to be enabled. The request creates a pending
+transaction record; configuring a gateway account does not itself call the
+provider or collect funds.
+
+```http
+POST /api/payin/request
+Authorization: Bearer <merchant-token>
+Content-Type: application/json
+
+{
+  "reference": "PAY-10001",
+  "orderId": "ORDER-10001",
+  "amount": 2500.00,
+  "currency": "INR",
+  "gatewayAccountId": 1,
+  "customerEmail": "customer@example.com",
+  "description": "Order payment"
+}
+```
+
+The response contains the created payment record and its `pending` status.
+Use `GET /api/payin/request/:id` to check the status. References must be
+unique; amounts must be positive with at most two decimal places. If supplied,
+the gateway account must be enabled and configured for payin.
 
 ## API rate limits
 
