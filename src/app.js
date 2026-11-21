@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { apiRateLimit } = require('./middlewares/rate-limit');
 
 const app = express();
 app.use(cors({
@@ -8,6 +9,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Merchant-Id', 'X-Merchant-Token']
 }));
+app.use(apiRateLimit);
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'UltraPay' }));
