@@ -77,11 +77,24 @@ function present(row) {
   };
 }
 
+function presentStats(row) {
+  return {
+    totalPayin: Number(row.total_payin || 0),
+    todayPayin: Number(row.today_payin || 0),
+    successfulPayin: Number(row.successful_payin || 0),
+    totalCommission: Number(row.total_commission || 0)
+  };
+}
+
 exports.list = async (query) => {
   const filters = filtersFrom(query);
-  const result = await repository.list(filters);
+  const [result, stats] = await Promise.all([
+    repository.list(filters),
+    repository.stats(filters)
+  ]);
   const totalPages = Math.ceil(result.total / filters.limit);
   return {
+    stats: presentStats(stats),
     transactions: result.rows.map(present),
     pagination: {
       page: filters.page,
@@ -115,12 +128,7 @@ exports.getById = async (idValue) => {
 exports.stats = async (query) => {
   const filters = filtersFrom(query);
   const row = await repository.stats(filters);
-  return {
-    totalPayin: Number(row.total_payin || 0),
-    todayPayin: Number(row.today_payin || 0),
-    successfulPayin: Number(row.successful_payin || 0),
-    totalCommission: Number(row.total_commission || 0)
-  };
+  return presentStats(row);
 };
 
 function csvCell(value) {
