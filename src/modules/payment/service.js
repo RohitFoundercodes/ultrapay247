@@ -19,6 +19,10 @@ exports.create = async (merchantId, data) => {
   return repo.create({
     merchantId,
     reference: data.reference,
+    orderId: data.orderId || data.reference,
+    gatewayAccountId: data.gatewayAccountId || null,
+    providerName: data.providerName || null,
+    paymentId: data.paymentId || null,
     amount,
     currency,
     customerEmail: data.customerEmail || null,

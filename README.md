@@ -28,6 +28,10 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/gateways/:gatewayId`
 - `PATCH /api/admin/gateways/:gatewayId`
 - `PATCH /api/admin/gateways/:gatewayId/status`
+- `GET /api/admin/payin/stats`
+- `GET /api/admin/payin/transactions`
+- `GET /api/admin/payin/transactions/:id`
+- `GET /api/admin/payin/export.csv`
 - `GET /api/tickets`
 - `POST /api/tickets`
 - `GET /api/tickets/:ticketId`
@@ -41,6 +45,20 @@ Payment endpoints require `Authorization: Bearer <token>`.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
 Merchant management endpoints require an admin JWT. Payment endpoints accept a
 merchant JWT or the generated `X-Merchant-Id` and `X-Merchant-Token` headers.
+
+## API rate limits
+
+All endpoints, including `/health`, share a limit of 120 requests per IP
+address per 15-minute window. Merchant and admin login endpoints have an
+additional shared limit of 10 attempts per IP per 15 minutes. Merchant
+registration is limited to 5 requests per IP per hour. CORS `OPTIONS`
+preflight requests are excluded.
+Requests over a limit receive HTTP `429` with a JSON error and standard
+`RateLimit-*` headers.
+
+The default limiter store is in memory for this Node.js process; counters reset
+when the process restarts and are not shared across multiple server instances.
+Use a shared rate-limit store for multi-instance production deployments.
 
 ## Merchant authentication
 
