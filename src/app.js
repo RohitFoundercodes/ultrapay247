@@ -3,10 +3,26 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://ultrapay247.vercel.app'
+];
+
 app.use(cors({
-  origin: (origin, callback) => callback(null, origin === 'http://localhost:5173'),
-  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Merchant-Id', 'X-Merchant-Token']
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Merchant-Id',
+        'X-Merchant-Token'
+    ]
 }));
 app.use(express.json());
 
