@@ -4,6 +4,7 @@ const merchantRoutes = require('../merchant/routes');
 const ticketRoutes = require('../ticket/admin-routes');
 const gatewayRoutes = require('../gateway/routes');
 const payinRoutes = require('../payin/routes');
+const payoutRoutes = require('../payout/admin-routes');
 const auth = require('../../middlewares/auth');
 const requireAdmin = require('../../middlewares/require-admin');
 const { loginRateLimit } = require('../../middlewares/rate-limit');
@@ -14,5 +15,6 @@ router.use('/merchants', merchantRoutes);
 router.use('/tickets', ticketRoutes);
 router.use('/gateways', gatewayRoutes);
 router.use('/payin', payinRoutes);
+router.use('/payout', payoutRoutes);
 
 module.exports = router;

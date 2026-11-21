@@ -33,6 +33,7 @@ app.use('/api/auth', require('./modules/user/routes'));
 app.use('/api/admin', require('./modules/admin/routes'));
 app.use('/api/tickets', require('./modules/ticket/merchant-routes'));
 app.use('/api/payments', require('./modules/payment/routes'));
+app.use('/api/payouts', require('./modules/payout/merchant-routes'));
 
 app.use((err,req,res,next)=>{
   const status = err.status || 500;

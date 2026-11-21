@@ -32,6 +32,11 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/payin/transactions`
 - `GET /api/admin/payin/transactions/:id`
 - `GET /api/admin/payin/export.csv`
+- `GET /api/admin/payout/stats`
+- `GET /api/admin/payout/transactions`
+- `GET /api/admin/payout/transactions/:id`
+- `PATCH /api/admin/payout/transactions/:id/status`
+- `GET /api/admin/payout/export.csv`
 - `GET /api/tickets`
 - `POST /api/tickets`
 - `GET /api/tickets/:ticketId`
@@ -40,11 +45,16 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/payments`
 - `GET /api/payments/:id`
 - `PATCH /api/payments/:id/status`
+- `POST /api/payouts`
+- `GET /api/payouts`
+- `GET /api/payouts/:id`
 
-Payment endpoints require `Authorization: Bearer <token>`.
+Payment and payout endpoints accept a merchant JWT or the generated
+`X-Merchant-Id` and `X-Merchant-Token` headers. Payout requests require payout
+to be enabled for the merchant. Admin payout endpoints require an admin JWT.
+Payout creation records a pending request; it does not initiate a bank transfer.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
-Merchant management endpoints require an admin JWT. Payment endpoints accept a
-merchant JWT or the generated `X-Merchant-Id` and `X-Merchant-Token` headers.
+Merchant management endpoints require an admin JWT.
 
 ## API rate limits
 
@@ -513,6 +523,42 @@ administrator access restricted and protect these responses. New accounts
 default to `disabled`. These endpoints manage settings only; they do not
 currently route payment requests through gateway provider APIs.
 
+## Payout transactions
+
+Merchants can submit payout requests with `POST /api/payouts`. The merchant
+must have payouts enabled. Requests are created with `pending` status and do
+not initiate a bank transfer; an administrator or integrated payout provider
+must process the request and update its status.
+
+```json
+{
+  "reference": "PO-10001",
+  "orderId": "ORDER-10001",
+  "amount": 2500.00,
+  "currency": "INR",
+  "beneficiaryName": "Example Recipient",
+  "accountNumber": "123456789012",
+  "ifsc": "ABCD0123456",
+  "customerEmail": "recipient@example.com",
+  "description": "Order refund"
+}
+```
+
+Beneficiary account numbers are encrypted at rest with `MERCHANT_DATA_KEY`.
+Payout responses expose only the last four digits. The merchant can list their
+requests with `GET /api/payouts` or retrieve one with `GET /api/payouts/:id`.
+
+Admin payout endpoints support:
+
+- `GET /api/admin/payout/stats` for total, today, successful payout, and commission summaries.
+- `GET /api/admin/payout/transactions` with `search`, `merchantId`, `provider`,
+  `status`, `settlement`, `from`, `to`, `page`, and `limit` filters.
+- `GET /api/admin/payout/transactions/:id` for transaction details.
+- `PATCH /api/admin/payout/transactions/:id/status` to update `status`
+  (`pending`, `succeeded`, `failed`), `settlement` (`pending`, `settled`,
+  `failed`), `utr`, or `paymentId`.
+- `GET /api/admin/payout/export.csv` to export matching transactions.
+
 ## Project architecture
 
 Each API module uses routes, controllers, services, and repositories. Merchant
@@ -520,7 +566,8 @@ accounts are stored in `merchants`; admin accounts are stored separately in
 `admins`. Tickets, ticket replies, and attachment metadata are stored in
 `support_tickets`, `support_ticket_messages`, and
 `support_ticket_attachments`. Gateway account configuration is stored in
-`payment_gateway_accounts`. Merchant passwords and admin passwords are stored as bcrypt hashes.
+`payment_gateway_accounts`, and payout requests are stored in
+`payout_transactions`. Merchant passwords and admin passwords are stored as bcrypt hashes.
 Admins have no public registration endpoint; provision them with the
 `admin:create` command.
 
