@@ -33,6 +33,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/payin/transactions/:id`
 - `GET /api/admin/payin/export.csv`
 - `POST /api/payin/request`
+- `GET /api/payin/request`
 - `GET /api/payin/request/:id`
 - `GET /api/admin/payout/stats`
 - `GET /api/admin/payout/transactions`
@@ -111,6 +112,8 @@ provider).
 Use `GET /api/payin/request/:id` to check the status. References must be
 unique; amounts must be positive with at most two decimal places. If supplied,
 the gateway account must be enabled and configured for payin.
+List the merchant's payin requests with `GET /api/payin/request`; results are
+newest first. Merchant payout requests are listed with `GET /api/payouts`.
 
 ## API rate limits
 
@@ -648,3 +651,16 @@ Content-Type: application/json
   "password": "your-admin-password"
 }
 ```
+
+
+curl -X POST https://control.trustpay24.online/api/merchant/v1/payins \
+  -H "X-Api-Key: $KEY" -H "X-Api-Secret:$SECRET" -H "Content-Type: application/json" \
+  -d '{
+    "reference": "ORD-10231",
+    "amount": 1499.00,
+    "method": "UPI",
+    "payer": { "name": "Asha Kumar", "phone": "9876543210" },
+    "returnUrl": "https://shop.example/orders/10231",
+    "expiresInSec": 900,
+    "narration": "Order 10231"
+  }'

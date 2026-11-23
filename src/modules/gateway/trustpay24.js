@@ -11,7 +11,7 @@ function providerError(message, status = 502) {
 }
 
 function clientErrorStatus(providerStatus) {
-  return providerStatus === 400 || providerStatus === 422 ? providerStatus : 502;
+  return providerStatus >= 400 && providerStatus < 500 ? providerStatus : 502;
 }
 
 function credentialsFromEnvironment() {

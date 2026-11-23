@@ -5,6 +5,7 @@ const requirePayin = require('../../middlewares/require-payin');
 
 router.use(merchantAuth);
 router.post('/request', requirePayin, controller.create);
+router.get('/request', controller.getAll);
 router.get('/request/:id', controller.getOne);
 
 module.exports = router;
