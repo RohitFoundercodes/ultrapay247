@@ -122,6 +122,13 @@ preflight requests are excluded.
 Requests over a limit receive HTTP `429` with a JSON error and standard
 `RateLimit-*` headers.
 
+Express trusts loopback proxies by default. If the reverse proxy that forwards
+requests to this app uses another address, set `TRUSTED_PROXY_IPS` to its
+comma-separated IP addresses or CIDRs (for example, `127.0.0.1` or
+`10.0.0.5,10.0.1.0/24`). Only list proxies controlled by your deployment;
+trusting arbitrary forwarded headers can let clients spoof their IP and evade
+rate limits.
+
 The default limiter store is in memory for this Node.js process; counters reset
 when the process restarts and are not shared across multiple server instances.
 Use a shared rate-limit store for multi-instance production deployments.

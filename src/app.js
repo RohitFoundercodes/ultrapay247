@@ -4,6 +4,12 @@ require('dotenv').config();
 const { apiRateLimit } = require('./middlewares/rate-limit');
 
 const app = express();
+const trustedProxyAddresses = (process.env.TRUSTED_PROXY_IPS || '')
+    .split(',')
+    .map(address => address.trim())
+    .filter(Boolean);
+app.set('trust proxy', trustedProxyAddresses.length ? trustedProxyAddresses : 'loopback');
+
 const allowedOrigins = [
     'http://localhost:5173',
     'https://ultrapay247.vercel.app'
