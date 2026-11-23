@@ -141,19 +141,6 @@ exports.list = async (filters) => {
   return { rows: rows[0], total: Number(countRows[0][0].total) };
 };
 
-exports.listMerchant = async (merchantRecordId) => {
-  const { where, values } = buildWhere({ merchantRecordId });
-  const [rows] = await db.query(
-    `SELECT ${selectColumns}
-     FROM payout_transactions p
-     LEFT JOIN merchant_details d ON d.merchant_id=p.merchant_id
-     ${where}
-     ORDER BY p.created_at DESC`,
-    values
-  );
-  return rows;
-};
-
 exports.getById = async (id) => {
   const [rows] = await db.query(
     `SELECT ${selectColumns}
@@ -182,6 +169,8 @@ exports.stats = async (filters) => {
     `SELECT
       COALESCE(SUM(p.amount), 0) AS total_payout,
       COALESCE(SUM(CASE WHEN p.status='succeeded' THEN p.amount ELSE 0 END), 0) AS successful_payout,
+      COALESCE(SUM(CASE WHEN p.status='pending' THEN p.amount ELSE 0 END), 0) AS pending_payout,
+      COALESCE(SUM(CASE WHEN p.status='failed' THEN p.amount ELSE 0 END), 0) AS failed_payout,
       COALESCE(SUM(p.commission_amount), 0) AS total_commission,
       COALESCE(SUM(CASE WHEN DATE(p.created_at)=CURDATE() THEN p.amount ELSE 0 END), 0) AS today_payout
      FROM payout_transactions p

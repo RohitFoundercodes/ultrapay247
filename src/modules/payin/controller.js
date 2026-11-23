@@ -1,5 +1,13 @@
 const service = require('./service');
 
+exports.listMerchant = async (req, res, next) => {
+  try {
+    res.json(await service.listMerchant(req.user.id, req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.list = async (req, res, next) => {
   try {
     res.json(await service.list(req.query));

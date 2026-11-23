@@ -112,8 +112,17 @@ provider).
 Use `GET /api/payin/request/:id` to check the status. References must be
 unique; amounts must be positive with at most two decimal places. If supplied,
 the gateway account must be enabled and configured for payin.
-List the merchant's payin requests with `GET /api/payin/request`; results are
-newest first. Merchant payout requests are listed with `GET /api/payouts`.
+List the merchant's payins with `GET /api/payin/request`. The response contains
+filtered dashboard stats (`totalPayin`, `todayPayin`, `successfulPayin`,
+`pendingPayin`, `failedPayin`, and `totalCommission`), transactions, pagination,
+and active filters. Merchant payout listing with `GET /api/payouts` returns the
+equivalent payout stats (`totalPayout`, `todayPayout`, `successfulPayout`,
+`pendingPayout`, `failedPayout`, and `totalCommission`).
+
+Both list APIs support `search`, `provider`, `status`, `settlement`, `from`,
+`to`, `page`, and `limit`. Dates use `YYYY-MM-DD`; `limit` defaults to 20 and
+cannot exceed 100. Results and dashboard stats are always scoped to the
+authenticated merchant.
 
 ## API rate limits
 
@@ -613,6 +622,8 @@ must process the request and update its status.
 Beneficiary account numbers are encrypted at rest with `MERCHANT_DATA_KEY`.
 Payout responses expose only the last four digits. The merchant can list their
 requests with `GET /api/payouts` or retrieve one with `GET /api/payouts/:id`.
+The list response includes dashboard stats, filtered transactions, and
+pagination metadata.
 
 Admin payout endpoints support:
 

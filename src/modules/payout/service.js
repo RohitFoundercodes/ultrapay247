@@ -123,7 +123,34 @@ function presentStats(row) {
     totalPayout: Number(row.total_payout || 0),
     todayPayout: Number(row.today_payout || 0),
     successfulPayout: Number(row.successful_payout || 0),
+    pendingPayout: Number(row.pending_payout || 0),
+    failedPayout: Number(row.failed_payout || 0),
     totalCommission: Number(row.total_commission || 0)
+  };
+}
+
+function presentList(result, stats, filters) {
+  const totalPages = Math.ceil(result.total / filters.limit);
+  return {
+    stats: presentStats(stats),
+    transactions: result.rows.map(present),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total: result.total,
+      totalPages,
+      hasNextPage: filters.page < totalPages,
+      hasPreviousPage: filters.page > 1 && result.total > 0
+    },
+    filters: {
+      search: filters.search || null,
+      merchantId: filters.merchantId || null,
+      provider: filters.provider || null,
+      status: filters.status || null,
+      settlement: filters.settlement || null,
+      from: filters.from || null,
+      to: filters.to || null
+    }
   };
 }
 
@@ -187,9 +214,18 @@ exports.create = async (merchantId, input) => {
   }
 };
 
-exports.listMerchant = async (merchantId) => (
-  (await repository.listMerchant(merchantId)).map(present)
-);
+exports.listMerchant = async (merchantId, query) => {
+  if (query && query.merchantId !== undefined) {
+    invalid('Merchant ID cannot be filtered on a merchant payout list');
+  }
+  const filters = filtersFrom(query);
+  filters.merchantRecordId = merchantId;
+  const [result, stats] = await Promise.all([
+    repository.list(filters),
+    repository.stats(filters)
+  ]);
+  return presentList(result, stats, filters);
+};
 
 exports.getMerchantById = async (merchantId, idValue) => {
   const row = await repository.getMerchantById(merchantId, parseId(idValue));
@@ -203,28 +239,7 @@ exports.list = async (query) => {
     repository.list(filters),
     repository.stats(filters)
   ]);
-  const totalPages = Math.ceil(result.total / filters.limit);
-  return {
-    stats: presentStats(stats),
-    transactions: result.rows.map(present),
-    pagination: {
-      page: filters.page,
-      limit: filters.limit,
-      total: result.total,
-      totalPages,
-      hasNextPage: filters.page < totalPages,
-      hasPreviousPage: filters.page > 1 && result.total > 0
-    },
-    filters: {
-      search: filters.search || null,
-      merchantId: filters.merchantId || null,
-      provider: filters.provider || null,
-      status: filters.status || null,
-      settlement: filters.settlement || null,
-      from: filters.from || null,
-      to: filters.to || null
-    }
-  };
+  return presentList(result, stats, filters);
 };
 
 exports.getById = async (idValue) => {

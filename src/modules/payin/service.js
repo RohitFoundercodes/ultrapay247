@@ -82,16 +82,13 @@ function presentStats(row) {
     totalPayin: Number(row.total_payin || 0),
     todayPayin: Number(row.today_payin || 0),
     successfulPayin: Number(row.successful_payin || 0),
+    pendingPayin: Number(row.pending_payin || 0),
+    failedPayin: Number(row.failed_payin || 0),
     totalCommission: Number(row.total_commission || 0)
   };
 }
 
-exports.list = async (query) => {
-  const filters = filtersFrom(query);
-  const [result, stats] = await Promise.all([
-    repository.list(filters),
-    repository.stats(filters)
-  ]);
+function presentList(result, stats, filters) {
   const totalPages = Math.ceil(result.total / filters.limit);
   return {
     stats: presentStats(stats),
@@ -114,6 +111,28 @@ exports.list = async (query) => {
       to: filters.to || null
     }
   };
+}
+
+exports.list = async (query) => {
+  const filters = filtersFrom(query);
+  const [result, stats] = await Promise.all([
+    repository.list(filters),
+    repository.stats(filters)
+  ]);
+  return presentList(result, stats, filters);
+};
+
+exports.listMerchant = async (merchantId, query) => {
+  if (query && query.merchantId !== undefined) {
+    invalid('Merchant ID cannot be filtered on a merchant payin list');
+  }
+  const filters = filtersFrom(query);
+  filters.merchantRecordId = merchantId;
+  const [result, stats] = await Promise.all([
+    repository.list(filters),
+    repository.stats(filters)
+  ]);
+  return presentList(result, stats, filters);
 };
 
 exports.getById = async (idValue) => {

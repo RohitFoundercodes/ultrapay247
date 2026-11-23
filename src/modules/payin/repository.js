@@ -8,6 +8,10 @@ function buildWhere(filters) {
   const conditions = [];
   const values = [];
 
+  if (filters.merchantRecordId !== undefined) {
+    conditions.push('p.merchant_id=?');
+    values.push(filters.merchantRecordId);
+  }
   if (filters.search) {
     const search = escaped(filters.search);
     conditions.push(`(
@@ -98,6 +102,8 @@ exports.stats = async (filters) => {
     `SELECT
       COALESCE(SUM(p.amount), 0) AS total_payin,
       COALESCE(SUM(CASE WHEN p.status='succeeded' THEN p.amount ELSE 0 END), 0) AS successful_payin,
+      COALESCE(SUM(CASE WHEN p.status='pending' THEN p.amount ELSE 0 END), 0) AS pending_payin,
+      COALESCE(SUM(CASE WHEN p.status='failed' THEN p.amount ELSE 0 END), 0) AS failed_payin,
       COALESCE(SUM(p.commission_amount), 0) AS total_commission,
       COALESCE(SUM(CASE WHEN DATE(p.created_at)=CURDATE() THEN p.amount ELSE 0 END), 0) AS today_payin
      FROM payments p

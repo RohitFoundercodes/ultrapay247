@@ -10,7 +10,7 @@ exports.create = async (req, res, next) => {
 
 exports.listMerchant = async (req, res, next) => {
   try {
-    res.json(await service.listMerchant(req.user.id));
+    res.json(await service.listMerchant(req.user.id, req.query));
   } catch (error) {
     next(error);
   }
