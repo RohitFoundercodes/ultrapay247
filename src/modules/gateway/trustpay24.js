@@ -10,6 +10,10 @@ function providerError(message, status = 502) {
   return error;
 }
 
+function clientErrorStatus(providerStatus) {
+  return providerStatus === 400 || providerStatus === 422 ? providerStatus : 502;
+}
+
 function credentialsFromEnvironment() {
   const apiKey = (process.env.TRUSTPAY24_API_KEY || '').trim();
   const apiSecret = (process.env.TRUSTPAY24_API_SECRET || '').trim();
@@ -51,26 +55,37 @@ module.exports = async (payload) => {
 
       response.on('end', () => {
         const providerStatus = response.statusCode || 502;
-        if (providerStatus < 200 || providerStatus >= 300) {
-          console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
-          const clientStatus = providerStatus === 400 || providerStatus === 422
-            ? providerStatus
-            : 502;
-          reject(providerError(
-            `TrustPay24 rejected the payin request (HTTP ${providerStatus})`,
-            clientStatus
-          ));
-          return;
-        }
-
         let result;
         try {
           result = responseBytes
             ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
             : {};
         } catch (error) {
+          if (providerStatus < 200 || providerStatus >= 300) {
+            console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
+            reject(providerError(
+              `TrustPay24 rejected the payin request (HTTP ${providerStatus})`,
+              clientErrorStatus(providerStatus)
+            ));
+            return;
+          }
           console.error(`[TrustPay24] invalid JSON response (HTTP ${providerStatus})`);
           reject(providerError('TrustPay24 returned an invalid response'));
+          return;
+        }
+
+        if (providerStatus < 200 || providerStatus >= 300) {
+          const providerMessage = result && typeof result.message === 'string'
+            ? result.message
+            : result && typeof result.error === 'string'
+              ? result.error
+              : '';
+          const safeMessage = providerMessage.replace(/[\r\n\t]/g, ' ').slice(0, 200);
+          console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
+          reject(providerError(
+            `TrustPay24 rejected the payin request (HTTP ${providerStatus})${safeMessage ? `: ${safeMessage}` : ''}`,
+            clientErrorStatus(providerStatus)
+          ));
           return;
         }
 
