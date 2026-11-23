@@ -62,8 +62,9 @@ Merchant management endpoints require an admin JWT.
 
 Create a payin request with `POST /api/payin/request`. It requires merchant
 authentication and payin to be enabled. The request creates a pending
-transaction record; configuring a gateway account does not itself call the
-provider or collect funds.
+transaction record. Selecting an enabled `TRUSTPAY24` gateway account also
+creates a payin with TrustPay24 and includes its response in `gatewayResponse`.
+Other gateway accounts continue to create local pending records only.
 
 ```http
 POST /api/payin/request
@@ -76,12 +77,39 @@ Content-Type: application/json
   "amount": 2500.00,
   "currency": "INR",
   "gatewayAccountId": 1,
-  "customerEmail": "customer@example.com",
-  "description": "Order payment"
+  "method": "UPI",
+  "payer": { "name": "Asha Kumar", "phone": "9876543210" },
+  "returnUrl": "https://shop.example/orders/10001",
+  "expiresInSec": 900,
+  "narration": "Order 10001"
 }
 ```
 
-The response contains the created payment record and its `pending` status.
+For TrustPay24, create an enabled gateway account with code `TRUSTPAY24`,
+direction `payin` (or `both`), payment method `UPI`, and credentials named
+`apiKey` and `apiSecret`:
+
+```json
+{
+  "providerName": "TrustPay24",
+  "code": "TRUSTPAY24",
+  "direction": "payin",
+  "paymentMethods": ["UPI"],
+  "chargePercent": 0,
+  "credentials": {
+    "apiKey": "<rotated-api-key>",
+    "apiSecret": "<rotated-api-secret>"
+  },
+  "status": "enabled"
+}
+```
+
+Send this to `POST /api/admin/gateways` as an admin. The account credentials
+are encrypted at rest. The
+payin request must use INR, include payer details, and use an HTTPS `returnUrl`.
+The response contains the created payment record, its `pending` status, and the
+provider's `gatewayResponse` (including any checkout URL returned by the
+provider).
 Use `GET /api/payin/request/:id` to check the status. References must be
 unique; amounts must be positive with at most two decimal places. If supplied,
 the gateway account must be enabled and configured for payin.

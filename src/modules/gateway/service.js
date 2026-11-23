@@ -229,6 +229,18 @@ exports.getById = async (idValue) => {
   return presentDetails(row);
 };
 
+exports.getPayinIntegrationAccount = async (idValue) => {
+  const row = await repository.getById(parseId(String(idValue)));
+  if (!row || row.status !== 'enabled' || !['payin', 'both'].includes(row.direction)) {
+    invalid('Payin gateway account not found or disabled', 400);
+  }
+  return {
+    code: row.gateway_code,
+    paymentMethods: parsePaymentMethods(row.payment_methods),
+    credentials: decodeCredentials(row.credentials_encrypted)
+  };
+};
+
 exports.create = async (input) => {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A gateway account object is required');
