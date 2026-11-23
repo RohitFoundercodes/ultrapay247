@@ -374,12 +374,16 @@ optional, already-hosted HTTPS URL; this endpoint does not upload files.
 
 ```json
 {
+  "type": "credit",
   "amount": 25000,
   "description": "Wallet funding",
-  "utr": "UTR202611160001",
+  "reference": "UTR202611160001",
   "receiptUrl": "https://files.example.com/funding-receipt.jpg"
 }
 ```
+
+`type` may be omitted or set to `credit`; `reference` is an alias for `utr`.
+This creates a pending request and does not immediately credit the wallet.
 
 Merchant and admin lists accept `page`, `limit` (maximum `100`), `search`,
 `status` (`pending`, `in_process`, `approved`, or `rejected`), and optional

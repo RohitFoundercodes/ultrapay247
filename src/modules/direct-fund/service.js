@@ -126,9 +126,12 @@ function normalizeCreate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A direct fund request object is required');
   }
-  const allowedFields = new Set(['amount', 'description', 'utr', 'receiptUrl']);
+  const allowedFields = new Set(['type', 'amount', 'reference', 'description', 'utr', 'receiptUrl']);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) invalid(`Field ${field} is not supported`);
+  }
+  if (input.type !== undefined && input.type !== 'credit') {
+    invalid('Direct fund request type must be credit');
   }
 
   if ((typeof input.amount !== 'number' && typeof input.amount !== 'string') ||
@@ -146,11 +149,22 @@ function normalizeCreate(input) {
   }
 
   let utr = null;
+  const reference = input.reference;
+  if (reference !== undefined && reference !== null && reference !== '') {
+    if (typeof reference !== 'string' || reference.trim().length > 100) {
+      invalid('Reference must be at most 100 characters');
+    }
+    utr = reference.trim() || null;
+  }
   if (input.utr !== undefined && input.utr !== null && input.utr !== '') {
     if (typeof input.utr !== 'string' || input.utr.trim().length > 100) {
       invalid('UTR must be at most 100 characters');
     }
-    utr = input.utr.trim() || null;
+    const explicitUtr = input.utr.trim() || null;
+    if (utr && explicitUtr && utr !== explicitUtr) {
+      invalid('Reference and UTR must match when both are provided');
+    }
+    utr = explicitUtr || utr;
   }
 
   let receiptUrl = null;
