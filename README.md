@@ -86,8 +86,11 @@ Content-Type: application/json
 ```
 
 For TrustPay24, create an enabled gateway account with code `TRUSTPAY24`,
-direction `payin` (or `both`), payment method `UPI`, and credentials named
-`apiKey` and `apiSecret`:
+direction `payin` (or `both`), and payment method `UPI`. Configure
+`TRUSTPAY24_API_KEY` and `TRUSTPAY24_API_SECRET` in the backend process
+environment (or its local, untracked `.env` file); do not commit the values.
+These environment variables are shared by all TrustPay24 gateway accounts.
+TrustPay24 credentials are not stored in the gateway account.
 
 ```json
 {
@@ -96,16 +99,11 @@ direction `payin` (or `both`), payment method `UPI`, and credentials named
   "direction": "payin",
   "paymentMethods": ["UPI"],
   "chargePercent": 0,
-  "credentials": {
-    "apiKey": "<rotated-api-key>",
-    "apiSecret": "<rotated-api-secret>"
-  },
   "status": "enabled"
 }
 ```
 
-Send this to `POST /api/admin/gateways` as an admin. The account credentials
-are encrypted at rest. The
+Send this to `POST /api/admin/gateways` as an admin. The
 payin request must use INR, include payer details, and use an HTTPS `returnUrl`.
 The response contains the created payment record, its `pending` status, and the
 provider's `gatewayResponse` (including any checkout URL returned by the

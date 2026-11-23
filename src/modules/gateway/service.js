@@ -236,8 +236,7 @@ exports.getPayinIntegrationAccount = async (idValue) => {
   }
   return {
     code: row.gateway_code,
-    paymentMethods: parsePaymentMethods(row.payment_methods),
-    credentials: decodeCredentials(row.credentials_encrypted)
+    paymentMethods: parsePaymentMethods(row.payment_methods)
   };
 };
 
@@ -260,7 +259,10 @@ exports.create = async (input) => {
   const chargePercent = input.chargePercent === undefined
     ? 0
     : normalizeChargePercent(input.chargePercent);
-  const credentials = normalizeCredentials(input.credentials);
+  if (code === 'TRUSTPAY24' && input.credentials !== undefined) {
+    invalid('TrustPay24 credentials must be configured in the backend environment');
+  }
+  const credentials = code === 'TRUSTPAY24' ? {} : normalizeCredentials(input.credentials);
   const status = input.status === undefined ? 'disabled' : input.status;
   if (!statuses.has(status)) invalid('Status must be enabled or disabled');
 
@@ -289,16 +291,33 @@ exports.update = async (idValue, input) => {
   }
   if (!Object.keys(input).length) invalid('At least one field must be provided');
 
+  const existingAccount = input.code !== undefined || input.credentials !== undefined
+    ? await repository.getById(id)
+    : null;
+  if ((input.code !== undefined || input.credentials !== undefined) && !existingAccount) {
+    invalid('Gateway account not found', 404);
+  }
+
+  const code = input.code === undefined
+    ? (existingAccount ? existingAccount.gateway_code : undefined)
+    : normalizeCode(input.code);
+  if (code === 'TRUSTPAY24' && input.credentials !== undefined) {
+    invalid('TrustPay24 credentials must be configured in the backend environment');
+  }
+
   const updates = {};
   if (input.providerName !== undefined) {
     updates.providerName = requiredString(input, 'providerName', 'Provider name', 100);
   }
-  if (input.code !== undefined) updates.code = normalizeCode(input.code);
+  if (input.code !== undefined) updates.code = code;
   if (input.direction !== undefined) updates.direction = normalizeDirection(input.direction);
   if (input.paymentMethods !== undefined) updates.paymentMethods = normalizeMethods(input.paymentMethods);
   if (input.chargePercent !== undefined) updates.chargePercent = normalizeChargePercent(input.chargePercent);
   if (input.credentials !== undefined) {
     updates.credentialsEncrypted = encrypt(JSON.stringify(normalizeCredentials(input.credentials)));
+  } else if (code === 'TRUSTPAY24' ||
+      (input.code !== undefined && existingAccount.gateway_code !== code)) {
+    updates.credentialsEncrypted = encrypt(JSON.stringify({}));
   }
 
   try {

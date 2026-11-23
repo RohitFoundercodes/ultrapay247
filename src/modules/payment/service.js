@@ -56,12 +56,6 @@ function normalizeTrustpay24Request(data, account, reference, description, curre
     fail('Narration is required and must be at most 255 characters');
   }
 
-  const { apiKey, apiSecret } = account.credentials;
-  if (typeof apiKey !== 'string' || !apiKey.trim() ||
-      typeof apiSecret !== 'string' || !apiSecret.trim()) {
-    fail('TrustPay24 gateway credentials are not configured', 500);
-  }
-
   return {
     method,
     payer: { name: name.trim(), phone: phone.trim() },
@@ -129,7 +123,7 @@ exports.create = async (merchantId, data) => {
     const request = normalizeTrustpay24Request(
       data, gatewayAccount, reference, description, currency
     );
-    providerResponse = await createTrustpay24Payin(gatewayAccount.credentials, {
+    providerResponse = await createTrustpay24Payin({
       reference,
       amount: Math.round(amount * 100) / 100,
       method: request.method,
