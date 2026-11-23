@@ -268,7 +268,8 @@ Create a merchant with `POST /api/admin/merchants`:
   "status": "active",
   "payinCommission": 0.5,
   "payoutCommission": 0.5,
-  "directFundCommissionEnabled": true
+  "directFundCommissionEnabled": true,
+  "directFundCommissionPercent": 1.25
 }
 ```
 
@@ -362,6 +363,47 @@ using `POST /api/admin/merchants/:merchantId/ledger`:
 Use `"type":"commission"`, `"amount":0`, and a positive `commissionAmount` to
 record commission. Ledger references are unique per merchant and debit entries
 cannot exceed the current wallet balance.
+
+## Direct fund requests
+
+Merchants can submit a request with `POST /api/direct-fund-requests` and use
+the same endpoint with `GET` to view their filtered, paginated request history.
+Use `GET /api/direct-fund-requests/:requestId` for a single request. Send the
+merchant JWT or `X-Merchant-Id` and `X-Merchant-Token` headers. A receipt is an
+optional, already-hosted HTTPS URL; this endpoint does not upload files.
+
+```json
+{
+  "amount": 25000,
+  "description": "Wallet funding",
+  "utr": "UTR202611160001",
+  "receiptUrl": "https://files.example.com/funding-receipt.jpg"
+}
+```
+
+Merchant and admin lists accept `page`, `limit` (maximum `100`), `search`,
+`status` (`pending`, `in_process`, `approved`, or `rejected`), and optional
+`from`/`to` dates (`YYYY-MM-DD`). The list response includes request counts
+across all statuses for the other selected filters, the request records,
+pagination metadata, and the applied filters.
+
+Admin endpoints require an admin JWT:
+
+- `GET /api/admin/direct-fund-requests` lists requests and includes dashboard
+  counts; it additionally accepts `merchantId`.
+- `GET /api/admin/direct-fund-requests/:requestId` returns a request.
+- `PATCH /api/admin/direct-fund-requests/:requestId/status` accepts
+  `{"status":"in_process"}`, `{"status":"approved"}`, or
+  `{"status":"rejected","reviewNote":"..."}`.
+
+Approval atomically credits the full requested amount to the merchant wallet
+and records the configured direct-fund commission separately in the wallet
+ledger. Configure `directFundCommissionEnabled` and
+`directFundCommissionPercent` when creating or updating a merchant. Commission
+does not reduce the wallet credit. Requests may transition from `pending` to
+`in_process`, `approved`, or `rejected`, and from `in_process` to either final
+status; final requests cannot be changed.
+
 Merchant account information is stored in `merchants`; business, bank, tax,
 commission, and API credential data is stored in the related
 `merchant_details` table. The wallet ledger is a separate append-only financial

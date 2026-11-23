@@ -108,6 +108,7 @@ function present(row) {
     payinCommission: Number(row.payin_commission),
     payoutCommission: Number(row.payout_commission),
     directFundCommissionEnabled: Boolean(row.direct_fund_commission_enabled),
+    directFundCommissionPercent: Number(row.direct_fund_commission_percent || 0),
     merchantTokenMasked: row.merchant_token_last4
       ? `up_live_********${row.merchant_token_last4}`
       : null,
@@ -124,7 +125,7 @@ const merchantUpdateFields = new Set([
   'name', 'mobile', 'email', 'companyName', 'bankName', 'ifsc',
   'accountNumber', 'aadhaarCard', 'panCard', 'gstin', 'status',
   'payinEnabled', 'payoutEnabled', 'payinCommission', 'payoutCommission',
-  'directFundCommissionEnabled'
+  'directFundCommissionEnabled', 'directFundCommissionPercent'
 ]);
 const merchantDetailUpdateFields = new Set([
   'mobile', 'companyName', 'bankName', 'ifsc',
@@ -210,6 +211,12 @@ function normalizeUpdate(input, allowedFields = merchantUpdateFields) {
       'Direct fund commission enabled'
     );
   }
+  if (input.directFundCommissionPercent !== undefined) {
+    detailUpdates.directFundCommissionPercent = percentage(
+      input.directFundCommissionPercent,
+      'Direct fund commission percent'
+    );
+  }
 
   return { merchantUpdates, detailUpdates };
 }
@@ -256,6 +263,10 @@ exports.create = async (input) => {
   );
   const payinCommission = percentage(input.payinCommission, 'Payin commission');
   const payoutCommission = percentage(input.payoutCommission, 'Payout commission');
+  const directFundCommissionPercent = percentage(
+    input.directFundCommissionPercent,
+    'Direct fund commission percent'
+  );
 
   let temporaryPassword;
   let merchantPassword;
@@ -298,7 +309,8 @@ exports.create = async (input) => {
       payoutEnabled,
       payinCommission,
       payoutCommission,
-      directFundCommissionEnabled
+      directFundCommissionEnabled,
+      directFundCommissionPercent
     });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -326,6 +338,7 @@ exports.create = async (input) => {
         payin_commission: payinCommission,
         payout_commission: payoutCommission,
         direct_fund_commission_enabled: directFundCommissionEnabled,
+        direct_fund_commission_percent: directFundCommissionPercent,
         merchant_token_last4: merchantTokenLast4,
         wallet_balance: 0,
         total_commission: 0,
