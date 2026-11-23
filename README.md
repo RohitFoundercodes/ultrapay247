@@ -414,6 +414,45 @@ commission, and API credential data is stored in the related
 record. All three tables track dates in the Asia/Kolkata timezone; merchant
 `updatedAt` values change automatically when their corresponding row is updated.
 
+## Disputes
+
+Merchants can raise a dispute for one of their payin transactions with
+`POST /api/disputes`. The API verifies that the transaction and order belong to
+the authenticated merchant, and only one dispute can be filed for each
+transaction. Use `GET /api/disputes/reasons` to retrieve the supported reason
+codes and labels.
+
+```json
+{
+  "transactionId": "TXN893726451",
+  "orderId": "ORD738109",
+  "amount": 25000,
+  "reason": "amount_not_received",
+  "description": "The payer was charged but the amount was not received."
+}
+```
+
+Merchants can list their disputes with `GET /api/disputes` and view a single
+dispute with `GET /api/disputes/:disputeId`. Both merchant and admin lists
+support `page`, `limit` (maximum `100`), `search` (dispute ID, transaction ID,
+or order ID), `status`, `reason`, and optional `from`/`to` dates (`YYYY-MM-DD`).
+The list response includes date-range counts for open, under-review, won, and
+lost disputes, plus pagination metadata.
+
+Admin endpoints require an admin JWT:
+
+- `GET /api/admin/disputes` lists disputes and dashboard counts.
+- `GET /api/admin/disputes/stats?from=2026-11-01&to=2026-11-21` returns counts.
+- `GET /api/admin/disputes/:disputeId` returns dispute, merchant, and payment
+  details.
+- `PATCH /api/admin/disputes/:disputeId/status` accepts
+  `{"status":"under_review"}`, `{"status":"won"}`, or `{"status":"lost"}`.
+  An optional `reviewNote` can be included.
+
+Disputes can move from `open` to `under_review`, `won`, or `lost`; disputes
+under review can move to `won` or `lost`. Final statuses cannot be changed.
+The `012_disputes` migration creates the MySQL table and relationships.
+
 ## Support tickets
 
 Merchants use their merchant JWT or `X-Merchant-Id` and `X-Merchant-Token`
