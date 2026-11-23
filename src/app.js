@@ -12,7 +12,7 @@ app.set('trust proxy', trustedProxyAddresses.length ? trustedProxyAddresses : 'l
 
 const allowedOrigins = [
     'http://localhost:5173',
-    'https://ultrapay247.vercel.app'
+    'https://ultrapay247.vercel.app','https://ultrapay247merchant.vercel.app'
 ];
 
 app.use(cors({
