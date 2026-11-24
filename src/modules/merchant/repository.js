@@ -145,6 +145,29 @@ exports.getByCode = async (merchantCode) => {
   return rows[0];
 };
 
+exports.getProfileById = async (merchantId) => {
+  const [rows] = await db.query(
+    `SELECT m.id, d.merchant_code, m.name, m.email, d.mobile, d.company_name,
+      m.status, d.bank_name, d.ifsc, d.account_number_encrypted,
+      d.aadhaar_encrypted, d.pan_encrypted, d.gstin, d.payin_enabled,
+      d.payout_enabled, d.payin_commission, d.payout_commission,
+      d.direct_fund_commission_enabled, d.direct_fund_commission_percent,
+      m.created_at, m.updated_at,
+      d.created_at AS details_created_at, d.updated_at AS details_updated_at,
+      d.merchant_token_last4,
+      (SELECT COALESCE(SUM(CASE WHEN l.entry_type='credit' THEN l.amount
+        WHEN l.entry_type='debit' THEN -l.amount ELSE 0 END), 0)
+       FROM merchant_wallet_ledger l WHERE l.merchant_id=m.id) AS wallet_balance,
+      (SELECT COALESCE(SUM(l.commission_amount), 0)
+       FROM merchant_wallet_ledger l WHERE l.merchant_id=m.id) AS total_commission
+     FROM merchants m
+     LEFT JOIN merchant_details d ON d.merchant_id=m.id
+     WHERE m.id=?`,
+    [merchantId]
+  );
+  return rows[0];
+};
+
 exports.updateByCode = async (merchantCode, merchantUpdates, detailUpdates) => {
   const merchantColumns = { name: 'name', email: 'email', status: 'status' };
   const detailColumns = {

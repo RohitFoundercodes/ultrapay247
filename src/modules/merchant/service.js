@@ -121,6 +121,20 @@ function present(row) {
   };
 }
 
+function presentFullProfile(row) {
+  return {
+    ...present(row),
+    bankName: row.bank_name || null,
+    ifsc: row.ifsc || null,
+    accountNumber: row.account_number_encrypted
+      ? decrypt(row.account_number_encrypted)
+      : null,
+    aadhaarCard: row.aadhaar_encrypted ? decrypt(row.aadhaar_encrypted) : null,
+    panCard: row.pan_encrypted ? decrypt(row.pan_encrypted) : null,
+    gstin: row.gstin || null
+  };
+}
+
 const merchantUpdateFields = new Set([
   'name', 'mobile', 'email', 'companyName', 'bankName', 'ifsc',
   'accountNumber', 'aadhaarCard', 'panCard', 'gstin', 'status',
@@ -389,15 +403,17 @@ exports.getByCode = async (merchantCode) => {
     throw error;
   }
 
-  return {
-    ...present(row),
-    bankName: row.bank_name,
-    ifsc: row.ifsc,
-    accountNumber: decrypt(row.account_number_encrypted),
-    aadhaarCard: decrypt(row.aadhaar_encrypted),
-    panCard: decrypt(row.pan_encrypted),
-    gstin: row.gstin
-  };
+  return presentFullProfile(row);
+};
+
+exports.getProfileById = async (merchantId) => {
+  const row = await repository.getProfileById(merchantId);
+  if (!row) {
+    const error = new Error('Merchant not found');
+    error.status = 404;
+    throw error;
+  }
+  return presentFullProfile(row);
 };
 
 async function updateMerchant(merchantCode, input, allowedFields) {

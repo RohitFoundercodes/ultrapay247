@@ -10,20 +10,12 @@ exports.login = async(req,res,next)=>{
   catch(e){next(e);}
 };
 
-exports.me = (req, res) => {
-  res.json({
-    merchant: {
-      id: req.user.id,
-      merchantId: req.user.merchantId,
-      name: req.user.name,
-      email: req.user.email,
-      mobile: req.user.mobile,
-      companyName: req.user.companyName,
-      status: req.user.status,
-      payinEnabled: req.user.payinEnabled,
-      payoutEnabled: req.user.payoutEnabled
-    }
-  });
+exports.me = async (req, res, next) => {
+  try {
+    res.json({ merchant: await service.getProfileById(req.user.id) });
+  } catch (error) {
+    next(error);
+  }
 };
 
 exports.updateMe = async (req, res, next) => {

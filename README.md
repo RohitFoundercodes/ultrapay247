@@ -189,11 +189,15 @@ safe merchant profile (never a password hash):
 ```
 
 Use the token on merchant-authenticated APIs as
-`Authorization: Bearer <merchant-jwt>`. `GET /api/auth/me` validates the
-current merchant token and returns the signed-in merchant profile. Admin
-tokens are rejected by merchant-authenticated APIs. Merchant JWTs are issued
-only for active merchant accounts; invalid credentials and inactive accounts
-receive the same `401 Invalid credentials` response.
+`Authorization: Bearer <merchant-jwt>`. `GET /api/auth/me` requires this
+merchant JWT and returns the complete merchant profile, including unmasked
+bank account, Aadhaar, and PAN details. It also returns merchant settings,
+wallet totals, and timestamps; passwords and the full merchant API token are
+never returned. `X-Merchant-Id` and `X-Merchant-Token` credentials cannot be
+used for this endpoint. Admin tokens are rejected by merchant-authenticated
+APIs. Merchant JWTs are issued only for active merchant accounts; invalid
+credentials and inactive accounts receive the same `401 Invalid credentials`
+response.
 
 Login requests may include a stable client-generated `deviceId` and a
 `deviceName` (both are optional, but must be sent together). Successful logins

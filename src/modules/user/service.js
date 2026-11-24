@@ -86,6 +86,9 @@ exports.login = async(data)=>{
 exports.updateProfile = async (merchantId, input) =>
   merchantService.updateProfile(merchantId, input);
 
+exports.getProfileById = async (merchantId) =>
+  merchantService.getProfileById(merchantId);
+
 exports.changePassword = async (merchantId, input) => {
   const { currentPassword, newPassword } = passwordChange.normalize(input);
   const currentHash = await repo.getPasswordHash(merchantId);
