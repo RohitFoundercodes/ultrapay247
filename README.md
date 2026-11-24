@@ -860,11 +860,21 @@ GET /api/withdrawals
 Authorization: Bearer <merchant-token>
 ```
 
-The response contains only requests belonging to the authenticated merchant,
-ordered by newest first, with a maximum of 100 requests:
+The response contains payout stats for the authenticated merchant and requests
+ordered by newest first, with a maximum of 100 requests. Stats cover all of the
+merchant's withdrawal requests, not only the 100 returned rows. `totalPayout`
+and `todayPayout` include pending and approved requests; `successfulPayout`
+contains approved requests and `pendingPayout` contains pending requests.
+Rejected requests are excluded from payout totals.
 
 ```json
 {
+  "stats": {
+    "totalPayout": 5000,
+    "todayPayout": 0,
+    "pendingPayout": 5000,
+    "successfulPayout": 0
+  },
   "requests": [
     {
       "id": "WDR000001",

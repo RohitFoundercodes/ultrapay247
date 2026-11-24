@@ -72,6 +72,21 @@ exports.listMerchant = async (merchantId) => {
   return rows;
 };
 
+exports.statsMerchant = async (merchantId) => {
+  const [rows] = await db.query(
+    `SELECT
+      COALESCE(SUM(CASE WHEN status IN ('pending', 'approved') THEN amount ELSE 0 END), 0) AS total_payout,
+      COALESCE(SUM(CASE WHEN status IN ('pending', 'approved') AND DATE(created_at)=CURDATE()
+        THEN amount ELSE 0 END), 0) AS today_payout,
+      COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END), 0) AS pending_payout,
+      COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END), 0) AS successful_payout
+     FROM merchant_withdrawal_requests
+     WHERE merchant_id=?`,
+    [merchantId]
+  );
+  return rows[0];
+};
+
 exports.getMerchantById = async (merchantId, id) => {
   const [rows] = await db.query(
     `SELECT ${selectColumns}, d.merchant_code

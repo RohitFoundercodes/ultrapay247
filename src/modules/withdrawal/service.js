@@ -114,9 +114,21 @@ exports.create = async (merchantId, input) => {
   return present(await repository.create(merchantId, request));
 };
 
-exports.listMerchant = async (merchantId) => ({
-  requests: (await repository.listMerchant(merchantId)).map(row => present(row))
-});
+exports.listMerchant = async (merchantId) => {
+  const [rows, stats] = await Promise.all([
+    repository.listMerchant(merchantId),
+    repository.statsMerchant(merchantId)
+  ]);
+  return {
+    stats: {
+      totalPayout: Number(stats.total_payout || 0),
+      todayPayout: Number(stats.today_payout || 0),
+      pendingPayout: Number(stats.pending_payout || 0),
+      successfulPayout: Number(stats.successful_payout || 0)
+    },
+    requests: rows.map(row => present(row))
+  };
+};
 
 exports.getMerchantById = async (merchantId, idValue) => {
   const row = await repository.getMerchantById(merchantId, parseId(idValue));
