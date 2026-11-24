@@ -82,6 +82,7 @@ function present(row) {
     description: row.description,
     utr: row.utr,
     receiptUrl: row.receipt_url,
+    imageUrl: row.receipt_url,
     status: row.status,
     reviewNote: row.review_note,
     createdAt: toKolkataIso(row.created_at),
@@ -126,7 +127,7 @@ function normalizeCreate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A direct fund request object is required');
   }
-  const allowedFields = new Set(['type', 'amount', 'reference', 'description', 'utr', 'receiptUrl']);
+  const allowedFields = new Set(['type', 'amount', 'reference', 'description', 'utr', 'receiptUrl', 'imageUrl']);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) invalid(`Field ${field} is not supported`);
   }
@@ -168,20 +169,26 @@ function normalizeCreate(input) {
   }
 
   let receiptUrl = null;
-  if (input.receiptUrl !== undefined && input.receiptUrl !== null && input.receiptUrl !== '') {
-    if (typeof input.receiptUrl !== 'string' || input.receiptUrl.trim().length > 2048) {
-      invalid('Receipt URL must be a valid HTTPS URL of at most 2048 characters');
+  const receiptValue = input.imageUrl !== undefined ? input.imageUrl : input.receiptUrl;
+  if (input.imageUrl !== undefined && input.receiptUrl !== undefined) {
+    if (input.imageUrl !== input.receiptUrl) {
+      invalid('Image URL and receipt URL must match when both are provided');
+    }
+  }
+  if (receiptValue !== undefined && receiptValue !== null && receiptValue !== '') {
+    if (typeof receiptValue !== 'string' || receiptValue.trim().length > 2048) {
+      invalid('Image URL must be a valid HTTPS URL of at most 2048 characters');
     }
     try {
-      const url = new URL(input.receiptUrl.trim());
+      const url = new URL(receiptValue.trim());
       if (url.protocol !== 'https:' || url.username || url.password) {
-        invalid('Receipt URL must be an HTTPS URL without embedded credentials');
+        invalid('Image URL must be an HTTPS URL without embedded credentials');
       }
       receiptUrl = url.toString();
-      if (receiptUrl.length > 2048) invalid('Receipt URL must be at most 2048 characters');
+      if (receiptUrl.length > 2048) invalid('Image URL must be at most 2048 characters');
     } catch (error) {
       if (error.status) throw error;
-      invalid('Receipt URL must be a valid HTTPS URL');
+      invalid('Image URL must be a valid HTTPS URL');
     }
   }
 

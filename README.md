@@ -378,11 +378,13 @@ optional, already-hosted HTTPS URL; this endpoint does not upload files.
   "amount": 25000,
   "description": "Wallet funding",
   "reference": "UTR202611160001",
-  "receiptUrl": "https://files.example.com/funding-receipt.jpg"
+  "imageUrl": "https://files.example.com/funding-receipt.jpg"
 }
 ```
 
 `type` may be omitted or set to `credit`; `reference` is an alias for `utr`.
+`imageUrl` is the image URL for the direct-fund receipt. `receiptUrl` is also
+accepted as a backward-compatible alias.
 This creates a pending request and does not immediately credit the wallet.
 
 Merchant and admin lists accept `page`, `limit` (maximum `100`), `search`,
