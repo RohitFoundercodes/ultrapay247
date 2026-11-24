@@ -8,7 +8,10 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `PATCH /api/auth/me`
+- `PATCH /api/auth/change-password`
 - `POST /api/admin/login`
+- `PATCH /api/admin/change-password`
 - `POST /api/admin/merchants`
 - `GET /api/admin/merchants`
 - `GET /api/admin/merchants/:merchantId`
@@ -174,6 +177,7 @@ safe merchant profile (never a password hash):
     "name": "Example Merchant",
     "email": "merchant@example.com",
     "mobile": "+919999999999",
+    "companyName": "Example Trading",
     "status": "active",
     "payinEnabled": true,
     "payoutEnabled": true
@@ -187,6 +191,32 @@ current merchant token and returns the signed-in merchant profile. Admin
 tokens are rejected by merchant-authenticated APIs. Merchant JWTs are issued
 only for active merchant accounts; invalid credentials and inactive accounts
 receive the same `401 Invalid credentials` response.
+
+Update the merchant's own profile with `PATCH /api/auth/me`. Only `name`,
+`email`, `mobile`, and `companyName` can be changed:
+
+```json
+{
+  "name": "Example Merchant",
+  "mobile": "+919999999999",
+  "companyName": "Example Trading"
+}
+```
+
+Merchants and admins can change their own password using
+`PATCH /api/auth/change-password` and `PATCH /api/admin/change-password`,
+respectively. Both require authentication and accept `currentPassword` and
+`newPassword`:
+
+```json
+{
+  "currentPassword": "old-password",
+  "newPassword": "a-new-password-of-at-least-12-characters"
+}
+```
+
+The new password must be at least 12 characters and at most 72 UTF-8 bytes;
+the current password must be supplied for verification.
 
 ## Setup
 

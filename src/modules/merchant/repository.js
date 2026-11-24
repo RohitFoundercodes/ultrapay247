@@ -208,6 +208,55 @@ exports.updateByCode = async (merchantCode, merchantUpdates, detailUpdates) => {
   }
 };
 
+exports.updateProfileById = async (merchantId, merchantUpdates, detailUpdates) => {
+  const merchantColumns = { name: 'name', email: 'email' };
+  const detailColumns = { mobile: 'mobile', companyName: 'company_name' };
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query(
+      'SELECT id FROM merchants WHERE id=? FOR UPDATE',
+      [merchantId]
+    );
+    if (!rows.length) {
+      await connection.rollback();
+      return false;
+    }
+
+    const merchantFields = Object.keys(merchantUpdates);
+    if (merchantFields.length) {
+      await connection.query(
+        `UPDATE merchants SET ${merchantFields.map(field => `${merchantColumns[field]}=?`).join(', ')},
+          updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+        [...merchantFields.map(field => merchantUpdates[field]), merchantId]
+      );
+    }
+
+    const detailFields = Object.keys(detailUpdates);
+    if (detailFields.length) {
+      const columns = detailFields.map(field => detailColumns[field]);
+      await connection.query(
+        `INSERT INTO merchant_details (merchant_id, ${columns.join(', ')})
+         VALUES (?, ${columns.map(() => '?').join(', ')})
+         ON DUPLICATE KEY UPDATE ${columns.map(column => `${column}=VALUES(${column})`).join(', ')}`,
+        [merchantId, ...detailFields.map(field => detailUpdates[field])]
+      );
+    }
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back merchant profile update:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 exports.resetToken = async (merchantCode, tokenHash, tokenLast4) => {
   const [result] = await db.query(
     `UPDATE merchant_details d
@@ -318,7 +367,7 @@ exports.createLedgerEntry = async (merchantCode, entry) => {
 
 exports.findForAuthentication = async (id) => {
   const [rows] = await db.query(
-    `SELECT m.id, m.name, m.email, m.status, d.merchant_code, d.mobile,
+    `SELECT m.id, m.name, m.email, m.status, d.merchant_code, d.mobile, d.company_name,
       d.payin_enabled, d.payout_enabled
      FROM merchants m
      LEFT JOIN merchant_details d ON d.merchant_id=m.id

@@ -1,6 +1,8 @@
 const repo = require('./repository');
-const {hash,compare} = require('../../utils/hash');
-const {generate} = require('../../utils/jwt');
+const merchantService = require('../merchant/service');
+const { hash, compare } = require('../../utils/hash');
+const { generate } = require('../../utils/jwt');
+const passwordChange = require('../../utils/password-change');
 
 exports.register = async(data)=>{
 
@@ -44,9 +46,40 @@ exports.login = async(data)=>{
       name: user.name,
       email: user.email,
       mobile: user.mobile || null,
+      companyName: user.company_name || null,
       status: user.status,
       payinEnabled: Boolean(user.payin_enabled),
       payoutEnabled: Boolean(user.payout_enabled)
     }
   };
+};
+
+exports.updateProfile = async (merchantId, input) =>
+  merchantService.updateProfile(merchantId, input);
+
+exports.changePassword = async (merchantId, input) => {
+  const { currentPassword, newPassword } = passwordChange.normalize(input);
+  const currentHash = await repo.getPasswordHash(merchantId);
+  if (!currentHash || !(await compare(currentPassword, currentHash))) {
+    const error = new Error('Current password is incorrect');
+    error.status = 401;
+    throw error;
+  }
+  if (await compare(newPassword, currentHash)) {
+    const error = new Error('New password must be different from the current password');
+    error.status = 400;
+    throw error;
+  }
+
+  const updated = await repo.updatePassword(
+    merchantId,
+    currentHash,
+    await hash(newPassword)
+  );
+  if (!updated) {
+    const error = new Error('Current password is incorrect');
+    error.status = 401;
+    throw error;
+  }
+  return { message: 'Password changed successfully' };
 };

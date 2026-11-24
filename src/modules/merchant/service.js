@@ -426,6 +426,41 @@ exports.updateByCode = (merchantCode, input) =>
 exports.updateDetails = (merchantCode, input) =>
   updateMerchant(merchantCode, input, merchantDetailUpdateFields);
 
+exports.updateProfile = async (merchantId, input) => {
+  const profileFields = new Set(['name', 'email', 'mobile', 'companyName']);
+  const { merchantUpdates, detailUpdates } = normalizeUpdate(input, profileFields);
+  try {
+    const updated = await repository.updateProfileById(merchantId, merchantUpdates, detailUpdates);
+    if (!updated) {
+      const error = new Error('Merchant not found');
+      error.status = 404;
+      throw error;
+    }
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      const conflict = new Error('A merchant with this email already exists');
+      conflict.status = 409;
+      throw conflict;
+    }
+    throw error;
+  }
+
+  const merchant = await repository.findForAuthentication(merchantId);
+  return {
+    merchant: {
+      id: merchant.id,
+      merchantId: merchant.merchant_code,
+      name: merchant.name,
+      email: merchant.email,
+      mobile: merchant.mobile,
+      companyName: merchant.company_name,
+      status: merchant.status,
+      payinEnabled: Boolean(merchant.payin_enabled),
+      payoutEnabled: Boolean(merchant.payout_enabled)
+    }
+  };
+};
+
 exports.resetToken = async (merchantCode) => {
   const merchantToken = `up_live_${crypto.randomBytes(32).toString('hex')}`;
   const tokenHash = crypto.createHash('sha256').update(merchantToken).digest('hex');

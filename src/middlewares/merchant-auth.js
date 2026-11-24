@@ -15,6 +15,7 @@ function attachMerchant(req, merchant) {
     name: merchant.name,
     email: merchant.email,
     mobile: merchant.mobile,
+    companyName: merchant.company_name,
     status: merchant.status,
     payinEnabled: Boolean(merchant.payin_enabled),
     payoutEnabled: Boolean(merchant.payout_enabled)

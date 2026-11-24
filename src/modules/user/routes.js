@@ -6,5 +6,7 @@ const { loginRateLimit, registrationRateLimit } = require('../../middlewares/rat
 router.post('/register', registrationRateLimit, ctrl.register);
 router.post('/login', loginRateLimit, ctrl.login);
 router.get('/me', merchantAuth, ctrl.me);
+router.patch('/me', merchantAuth, ctrl.updateMe);
+router.patch('/change-password', merchantAuth, ctrl.changePassword);
 
 module.exports = router;

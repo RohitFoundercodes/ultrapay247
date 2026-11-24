@@ -19,3 +19,19 @@ exports.findByEmail = async (email) => {
   );
   return rows[0];
 };
+
+exports.getPasswordHash = async (merchantId) => {
+  const [rows] = await db.query(
+    'SELECT password FROM merchants WHERE id=?',
+    [merchantId]
+  );
+  return rows[0] && rows[0].password;
+};
+
+exports.updatePassword = async (merchantId, currentHash, newHash) => {
+  const [result] = await db.query(
+    'UPDATE merchants SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND password=?',
+    [newHash, merchantId, currentHash]
+  );
+  return result.affectedRows > 0;
+};

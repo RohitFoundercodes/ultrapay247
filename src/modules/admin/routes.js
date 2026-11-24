@@ -13,6 +13,7 @@ const { loginRateLimit } = require('../../middlewares/rate-limit');
 
 router.post('/login', loginRateLimit, controller.login);
 router.use(auth, requireAdmin);
+router.patch('/change-password', controller.changePassword);
 router.use('/merchants', merchantRoutes);
 router.use('/tickets', ticketRoutes);
 router.use('/gateways', gatewayRoutes);

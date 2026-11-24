@@ -7,3 +7,11 @@ exports.login = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    res.json(await service.changePassword(req.user.id, req.body));
+  } catch (error) {
+    next(error);
+  }
+};
