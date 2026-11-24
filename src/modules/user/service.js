@@ -4,6 +4,33 @@ const { hash, compare } = require('../../utils/hash');
 const { generate } = require('../../utils/jwt');
 const passwordChange = require('../../utils/password-change');
 
+function normalizeDevice(input) {
+  const hasDeviceId = input.deviceId !== undefined && input.deviceId !== null;
+  const hasDeviceName = input.deviceName !== undefined && input.deviceName !== null;
+  if (!hasDeviceId && !hasDeviceName) return { deviceId: null, deviceName: null };
+  if (!hasDeviceId || !hasDeviceName) {
+    const error = new Error('Device ID and device name must be provided together');
+    error.status = 400;
+    throw error;
+  }
+  if (typeof input.deviceId !== 'string' || !input.deviceId.trim() ||
+      input.deviceId.trim().length > 128) {
+    const error = new Error('Device ID is required and must be at most 128 characters');
+    error.status = 400;
+    throw error;
+  }
+  if (typeof input.deviceName !== 'string' || !input.deviceName.trim() ||
+      input.deviceName.trim().length > 120) {
+    const error = new Error('Device name is required and must be at most 120 characters');
+    error.status = 400;
+    throw error;
+  }
+  return {
+    deviceId: input.deviceId.trim(),
+    deviceName: input.deviceName.trim()
+  };
+}
+
 exports.register = async(data)=>{
 
   if (!data.name || !data.email || !data.password) {
@@ -24,6 +51,7 @@ exports.login = async(data)=>{
     error.status = 400;
     throw error;
   }
+  const device = normalizeDevice(data);
   const user = await repo.findByEmail(data.email.trim().toLowerCase());
   if(!user || user.status !== 'active' || !user.password) {
     const error = new Error('Invalid credentials');
@@ -36,6 +64,7 @@ exports.login = async(data)=>{
     error.status = 401;
     throw error;
   }
+  await repo.createLoginLog(user.id, device);
   return {
     token: generate({ id: user.id, role: 'merchant' }),
     tokenType: 'Bearer',
@@ -71,7 +100,7 @@ exports.changePassword = async (merchantId, input) => {
     throw error;
   }
 
-  const updated = await repo.updatePassword(
+  const updated = await repo.updatePasswordAndLog(
     merchantId,
     currentHash,
     await hash(newPassword)

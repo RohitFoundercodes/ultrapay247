@@ -160,7 +160,9 @@ Content-Type: application/json
 
 {
   "email": "merchant@example.com",
-  "password": "<merchant-password>"
+  "password": "<merchant-password>",
+  "deviceId": "client-generated-stable-id",
+  "deviceName": "Chrome on Windows"
 }
 ```
 
@@ -192,6 +194,16 @@ current merchant token and returns the signed-in merchant profile. Admin
 tokens are rejected by merchant-authenticated APIs. Merchant JWTs are issued
 only for active merchant accounts; invalid credentials and inactive accounts
 receive the same `401 Invalid credentials` response.
+
+Login requests may include a stable client-generated `deviceId` and a
+`deviceName` (both are optional, but must be sent together). Successful logins
+record these values in `merchant_login_logs`; logins without device metadata
+are recorded with `NULL` device fields. The server does not store passwords or
+bearer tokens in these logs.
+
+Successful merchant password changes are recorded with their merchant ID and
+timestamp in `merchant_password_change_logs`. The password update and audit
+record are committed together.
 
 Update the merchant's own profile with `PATCH /api/auth/me`. Only `name`,
 `email`, `mobile`, and `companyName` can be changed:

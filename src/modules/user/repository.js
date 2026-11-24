@@ -28,10 +28,41 @@ exports.getPasswordHash = async (merchantId) => {
   return rows[0] && rows[0].password;
 };
 
-exports.updatePassword = async (merchantId, currentHash, newHash) => {
-  const [result] = await db.query(
-    'UPDATE merchants SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND password=?',
-    [newHash, merchantId, currentHash]
+exports.updatePasswordAndLog = async (merchantId, currentHash, newHash) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.query(
+      'UPDATE merchants SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND password=?',
+      [newHash, merchantId, currentHash]
+    );
+    if (!result.affectedRows) {
+      await connection.rollback();
+      return false;
+    }
+
+    await connection.query(
+      'INSERT INTO merchant_password_change_logs (merchant_id) VALUES (?)',
+      [merchantId]
+    );
+    await connection.commit();
+    return true;
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back merchant password change:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+exports.createLoginLog = async (merchantId, device) => {
+  await db.query(
+    `INSERT INTO merchant_login_logs (merchant_id, device_id, device_name)
+     VALUES (?, ?, ?)`,
+    [merchantId, device.deviceId, device.deviceName]
   );
-  return result.affectedRows > 0;
 };
