@@ -205,9 +205,11 @@ record these values in `merchant_login_logs`; logins without device metadata
 are recorded with `NULL` device fields. The server does not store passwords or
 bearer tokens in these logs.
 
-Successful merchant password changes are recorded with their merchant ID and
-timestamp in `merchant_password_change_logs`. The password update and audit
-record are committed together.
+Authenticated merchant password-change requests are recorded in
+`merchant_password_change_logs` with the merchant ID, attempt timestamp, and a
+success flag. Successful password updates and their audit records are
+committed together. Failed attempts are also logged; passwords and failure
+details are never stored.
 
 Update the merchant's own profile with `PATCH /api/auth/me`. Only `name`,
 `email`, `mobile`, and `companyName` can be changed:

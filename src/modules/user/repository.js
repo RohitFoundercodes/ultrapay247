@@ -42,7 +42,7 @@ exports.updatePasswordAndLog = async (merchantId, currentHash, newHash) => {
     }
 
     await connection.query(
-      'INSERT INTO merchant_password_change_logs (merchant_id) VALUES (?)',
+      'INSERT INTO merchant_password_change_logs (merchant_id, succeeded) VALUES (?, 1)',
       [merchantId]
     );
     await connection.commit();
@@ -57,6 +57,13 @@ exports.updatePasswordAndLog = async (merchantId, currentHash, newHash) => {
   } finally {
     connection.release();
   }
+};
+
+exports.createPasswordChangeFailureLog = async (merchantId) => {
+  await db.query(
+    'INSERT INTO merchant_password_change_logs (merchant_id, succeeded) VALUES (?, 0)',
+    [merchantId]
+  );
 };
 
 exports.createLoginLog = async (merchantId, device) => {

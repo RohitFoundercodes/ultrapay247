@@ -90,28 +90,33 @@ exports.getProfileById = async (merchantId) =>
   merchantService.getProfileById(merchantId);
 
 exports.changePassword = async (merchantId, input) => {
-  const { currentPassword, newPassword } = passwordChange.normalize(input);
-  const currentHash = await repo.getPasswordHash(merchantId);
-  if (!currentHash || !(await compare(currentPassword, currentHash))) {
-    const error = new Error('Current password is incorrect');
-    error.status = 401;
-    throw error;
-  }
-  if (await compare(newPassword, currentHash)) {
-    const error = new Error('New password must be different from the current password');
-    error.status = 400;
-    throw error;
-  }
+  try {
+    const { currentPassword, newPassword } = passwordChange.normalize(input);
+    const currentHash = await repo.getPasswordHash(merchantId);
+    if (!currentHash || !(await compare(currentPassword, currentHash))) {
+      const error = new Error('Current password is incorrect');
+      error.status = 401;
+      throw error;
+    }
+    if (await compare(newPassword, currentHash)) {
+      const error = new Error('New password must be different from the current password');
+      error.status = 400;
+      throw error;
+    }
 
-  const updated = await repo.updatePasswordAndLog(
-    merchantId,
-    currentHash,
-    await hash(newPassword)
-  );
-  if (!updated) {
-    const error = new Error('Current password is incorrect');
-    error.status = 401;
+    const updated = await repo.updatePasswordAndLog(
+      merchantId,
+      currentHash,
+      await hash(newPassword)
+    );
+    if (!updated) {
+      const error = new Error('Current password is incorrect');
+      error.status = 401;
+      throw error;
+    }
+    return { message: 'Password changed successfully' };
+  } catch (error) {
+    await repo.createPasswordChangeFailureLog(merchantId);
     throw error;
   }
-  return { message: 'Password changed successfully' };
 };
