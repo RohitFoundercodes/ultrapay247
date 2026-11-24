@@ -335,10 +335,25 @@ Create a merchant with `POST /api/admin/merchants`:
   "status": "active",
   "payinCommission": 0.5,
   "payoutCommission": 0.5,
+  "payinDailyLimit": 100000,
+  "payinMinAmount": 100,
+  "payinMaxAmount": 25000,
+  "payoutDailyLimit": 50000,
+  "payoutMinAmount": 500,
+  "payoutMaxAmount": 25000,
   "directFundCommissionEnabled": true,
   "directFundCommissionPercent": 1.25
 }
 ```
+
+The payin and payout daily limits cap the total amount requested per merchant,
+per currency, per Kolkata calendar day. Pending and successful requests count
+toward the cap; refunded payins also count, while failed requests do not.
+Minimum and maximum amounts apply to each individual transaction. Limits are
+optional; omit them or pass `null` for no limit. Minimum amounts cannot exceed
+maximum amounts. These fields can also be updated through
+`PATCH /api/admin/merchants/:merchantId`; merchant list and detail responses
+include the configured values.
 
 The `password` field is optional and must be at least 12 characters and no
 more than 72 UTF-8 bytes. If supplied, it is stored as a bcrypt hash and is

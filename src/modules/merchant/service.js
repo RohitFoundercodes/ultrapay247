@@ -35,6 +35,36 @@ function money(value, label, defaultValue = 0) {
   return Math.round(amount * 100) / 100;
 }
 
+function transactionLimit(value, label) {
+  if (value === undefined || value === null) return null;
+  if ((typeof value !== 'number' && typeof value !== 'string') ||
+      (typeof value === 'string' && !/^\d+(?:\.\d{1,2})?$/.test(value.trim()))) {
+    invalid(`${label} must be a positive amount with at most two decimal places`);
+  }
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 9999999999.99 ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
+    invalid(`${label} must be a positive amount with at most two decimal places`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+function validateLimitRanges(limits) {
+  for (const direction of ['payin', 'payout']) {
+    const minimum = limits[`${direction}MinAmount`];
+    const maximum = limits[`${direction}MaxAmount`];
+    if (minimum !== null && minimum !== undefined &&
+        maximum !== null && maximum !== undefined &&
+        Number(minimum) > Number(maximum)) {
+      invalid(`${direction}MinAmount cannot exceed ${direction}MaxAmount`);
+    }
+  }
+}
+
+function nullableAmount(value) {
+  return value === null || value === undefined ? null : Number(value);
+}
+
 function optionalBoolean(value, label, defaultValue) {
   if (value === undefined) return defaultValue;
   if (typeof value !== 'boolean') invalid(`${label} must be true or false`);
@@ -107,6 +137,12 @@ function present(row) {
     payoutEnabled: Boolean(row.payout_enabled),
     payinCommission: Number(row.payin_commission),
     payoutCommission: Number(row.payout_commission),
+    payinDailyLimit: nullableAmount(row.payin_daily_limit),
+    payinMinAmount: nullableAmount(row.payin_min_amount),
+    payinMaxAmount: nullableAmount(row.payin_max_amount),
+    payoutDailyLimit: nullableAmount(row.payout_daily_limit),
+    payoutMinAmount: nullableAmount(row.payout_min_amount),
+    payoutMaxAmount: nullableAmount(row.payout_max_amount),
     directFundCommissionEnabled: Boolean(row.direct_fund_commission_enabled),
     directFundCommissionPercent: Number(row.direct_fund_commission_percent || 0),
     merchantTokenMasked: row.merchant_token_last4
@@ -139,6 +175,8 @@ const merchantUpdateFields = new Set([
   'name', 'mobile', 'email', 'companyName', 'bankName', 'ifsc',
   'accountNumber', 'aadhaarCard', 'panCard', 'gstin', 'status',
   'payinEnabled', 'payoutEnabled', 'payinCommission', 'payoutCommission',
+  'payinDailyLimit', 'payinMinAmount', 'payinMaxAmount',
+  'payoutDailyLimit', 'payoutMinAmount', 'payoutMaxAmount',
   'directFundCommissionEnabled', 'directFundCommissionPercent'
 ]);
 const merchantDetailUpdateFields = new Set([
@@ -219,6 +257,14 @@ function normalizeUpdate(input, allowedFields = merchantUpdateFields) {
   if (input.payoutCommission !== undefined) {
     detailUpdates.payoutCommission = percentage(input.payoutCommission, 'Payout commission');
   }
+  for (const direction of ['payin', 'payout']) {
+    for (const limitType of ['DailyLimit', 'MinAmount', 'MaxAmount']) {
+      const field = `${direction}${limitType}`;
+      if (input[field] !== undefined) {
+        detailUpdates[field] = transactionLimit(input[field], field);
+      }
+    }
+  }
   if (input.directFundCommissionEnabled !== undefined) {
     detailUpdates.directFundCommissionEnabled = optionalBoolean(
       input.directFundCommissionEnabled,
@@ -281,6 +327,13 @@ exports.create = async (input) => {
     input.directFundCommissionPercent,
     'Direct fund commission percent'
   );
+  const payinDailyLimit = transactionLimit(input.payinDailyLimit, 'Payin daily limit');
+  const payinMinAmount = transactionLimit(input.payinMinAmount, 'Payin minimum amount');
+  const payinMaxAmount = transactionLimit(input.payinMaxAmount, 'Payin maximum amount');
+  const payoutDailyLimit = transactionLimit(input.payoutDailyLimit, 'Payout daily limit');
+  const payoutMinAmount = transactionLimit(input.payoutMinAmount, 'Payout minimum amount');
+  const payoutMaxAmount = transactionLimit(input.payoutMaxAmount, 'Payout maximum amount');
+  validateLimitRanges({ payinMinAmount, payinMaxAmount, payoutMinAmount, payoutMaxAmount });
 
   let temporaryPassword;
   let merchantPassword;
@@ -323,6 +376,12 @@ exports.create = async (input) => {
       payoutEnabled,
       payinCommission,
       payoutCommission,
+      payinDailyLimit,
+      payinMinAmount,
+      payinMaxAmount,
+      payoutDailyLimit,
+      payoutMinAmount,
+      payoutMaxAmount,
       directFundCommissionEnabled,
       directFundCommissionPercent
     });
@@ -351,6 +410,12 @@ exports.create = async (input) => {
         payout_enabled: payoutEnabled,
         payin_commission: payinCommission,
         payout_commission: payoutCommission,
+        payin_daily_limit: payinDailyLimit,
+        payin_min_amount: payinMinAmount,
+        payin_max_amount: payinMaxAmount,
+        payout_daily_limit: payoutDailyLimit,
+        payout_min_amount: payoutMinAmount,
+        payout_max_amount: payoutMaxAmount,
         direct_fund_commission_enabled: directFundCommissionEnabled,
         direct_fund_commission_percent: directFundCommissionPercent,
         merchant_token_last4: merchantTokenLast4,
@@ -418,6 +483,31 @@ exports.getProfileById = async (merchantId) => {
 
 async function updateMerchant(merchantCode, input, allowedFields) {
   const { merchantUpdates, detailUpdates } = normalizeUpdate(input, allowedFields);
+  const limitFields = [
+    'payinMinAmount', 'payinMaxAmount', 'payoutMinAmount', 'payoutMaxAmount'
+  ];
+  if (limitFields.some(field => detailUpdates[field] !== undefined)) {
+    const current = await repository.getByCode(merchantCode);
+    if (!current) {
+      const error = new Error('Merchant not found');
+      error.status = 404;
+      throw error;
+    }
+    validateLimitRanges({
+      payinMinAmount: detailUpdates.payinMinAmount === undefined
+        ? current.payin_min_amount
+        : detailUpdates.payinMinAmount,
+      payinMaxAmount: detailUpdates.payinMaxAmount === undefined
+        ? current.payin_max_amount
+        : detailUpdates.payinMaxAmount,
+      payoutMinAmount: detailUpdates.payoutMinAmount === undefined
+        ? current.payout_min_amount
+        : detailUpdates.payoutMinAmount,
+      payoutMaxAmount: detailUpdates.payoutMaxAmount === undefined
+        ? current.payout_max_amount
+        : detailUpdates.payoutMaxAmount
+    });
+  }
   try {
     const updated = await repository.updateByCode(merchantCode, merchantUpdates, detailUpdates);
     if (!updated) {

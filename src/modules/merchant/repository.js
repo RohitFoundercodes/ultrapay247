@@ -28,14 +28,18 @@ exports.create = async (data) => {
         account_number_encrypted, aadhaar_encrypted, pan_encrypted, gstin,
         merchant_code, merchant_token_hash, merchant_token_last4,
         payin_enabled, payout_enabled, payin_commission, payout_commission,
-        direct_fund_commission_enabled, direct_fund_commission_percent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        direct_fund_commission_enabled, direct_fund_commission_percent,
+        payin_daily_limit, payin_min_amount, payin_max_amount,
+        payout_daily_limit, payout_min_amount, payout_max_amount
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         merchant.insertId, data.mobile, data.companyName, data.bankName, data.ifsc,
         data.accountNumberEncrypted, data.aadhaarEncrypted, data.panEncrypted,
         data.gstin, data.merchantCode, data.merchantTokenHash, data.merchantTokenLast4,
         data.payinEnabled, data.payoutEnabled, data.payinCommission, data.payoutCommission,
-        data.directFundCommissionEnabled, data.directFundCommissionPercent
+        data.directFundCommissionEnabled, data.directFundCommissionPercent,
+        data.payinDailyLimit, data.payinMinAmount, data.payinMaxAmount,
+        data.payoutDailyLimit, data.payoutMinAmount, data.payoutMaxAmount
       ]
     );
     const [[dates]] = await connection.query(
@@ -97,7 +101,9 @@ exports.getAll = async ({ search, status, payinEnabled, payoutEnabled, limit, of
     db.query(
       `SELECT m.id, d.merchant_code, m.name, m.email, d.mobile, d.company_name,
         m.status, d.payin_enabled, d.payout_enabled, d.payin_commission,
-        d.payout_commission, d.direct_fund_commission_enabled,
+        d.payout_commission, d.payin_daily_limit, d.payin_min_amount,
+        d.payin_max_amount, d.payout_daily_limit, d.payout_min_amount,
+        d.payout_max_amount, d.direct_fund_commission_enabled,
         d.direct_fund_commission_percent,
         m.created_at, m.updated_at, d.created_at AS details_created_at,
         d.updated_at AS details_updated_at, d.merchant_token_last4,
@@ -128,6 +134,8 @@ exports.getByCode = async (merchantCode) => {
       m.status, d.bank_name, d.ifsc, d.account_number_encrypted,
       d.aadhaar_encrypted, d.pan_encrypted, d.gstin, d.payin_enabled,
       d.payout_enabled, d.payin_commission, d.payout_commission,
+      d.payin_daily_limit, d.payin_min_amount, d.payin_max_amount,
+      d.payout_daily_limit, d.payout_min_amount, d.payout_max_amount,
       d.direct_fund_commission_enabled, d.direct_fund_commission_percent,
       m.created_at, m.updated_at,
       d.created_at AS details_created_at, d.updated_at AS details_updated_at,
@@ -151,6 +159,8 @@ exports.getProfileById = async (merchantId) => {
       m.status, d.bank_name, d.ifsc, d.account_number_encrypted,
       d.aadhaar_encrypted, d.pan_encrypted, d.gstin, d.payin_enabled,
       d.payout_enabled, d.payin_commission, d.payout_commission,
+      d.payin_daily_limit, d.payin_min_amount, d.payin_max_amount,
+      d.payout_daily_limit, d.payout_min_amount, d.payout_max_amount,
       d.direct_fund_commission_enabled, d.direct_fund_commission_percent,
       m.created_at, m.updated_at,
       d.created_at AS details_created_at, d.updated_at AS details_updated_at,
@@ -183,6 +193,12 @@ exports.updateByCode = async (merchantCode, merchantUpdates, detailUpdates) => {
     payoutEnabled: 'payout_enabled',
     payinCommission: 'payin_commission',
     payoutCommission: 'payout_commission',
+    payinDailyLimit: 'payin_daily_limit',
+    payinMinAmount: 'payin_min_amount',
+    payinMaxAmount: 'payin_max_amount',
+    payoutDailyLimit: 'payout_daily_limit',
+    payoutMinAmount: 'payout_min_amount',
+    payoutMaxAmount: 'payout_max_amount',
     directFundCommissionEnabled: 'direct_fund_commission_enabled',
     directFundCommissionPercent: 'direct_fund_commission_percent'
   };

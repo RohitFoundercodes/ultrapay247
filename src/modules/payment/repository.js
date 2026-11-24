@@ -1,22 +1,8 @@
 const db = require('../../config/db');
 const notifications = require('../notification/repository');
+const transactionLimits = require('../merchant/transaction-limits');
 
 exports.create = async (data) => {
-  const [merchantRows] = await db.query(
-    `SELECT payin_commission
-     FROM merchant_details
-     WHERE merchant_id=?`,
-    [data.merchantId]
-  );
-  if (!merchantRows.length) {
-    const error = new Error('Merchant not found');
-    error.status = 404;
-    throw error;
-  }
-  const commissionPercent = Number(merchantRows[0].payin_commission);
-  const commissionAmount = Math.round(data.amount * commissionPercent) / 100;
-  const netAmount = Math.round((data.amount - commissionAmount) * 100) / 100;
-
   let providerName = data.providerName;
   if (data.gatewayAccountId) {
     const [gatewayRows] = await db.query(
@@ -37,6 +23,17 @@ exports.create = async (data) => {
   let result;
   try {
     await connection.beginTransaction();
+    const merchant = await transactionLimits.validate({
+      queryable: connection,
+      merchantId: data.merchantId,
+      direction: 'payin',
+      amount: data.amount,
+      currency: data.currency,
+      lock: true
+    });
+    const commissionPercent = Number(merchant.payin_commission);
+    const commissionAmount = Math.round(data.amount * commissionPercent) / 100;
+    const netAmount = Math.round((data.amount - commissionAmount) * 100) / 100;
     [result] = await connection.query(
       `INSERT INTO payments
         (merchant_id, reference, order_id, gateway_account_id, provider_name,
@@ -69,6 +66,10 @@ exports.create = async (data) => {
   }
   return exports.getOne(data.merchantId, result.insertId);
 };
+
+exports.validateLimits = (merchantId, amount, currency) => transactionLimits.validate({
+  merchantId, amount, currency, direction: 'payin'
+});
 
 exports.getAll = async (merchantId) => {
   const [rows] = await db.query(

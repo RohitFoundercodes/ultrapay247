@@ -105,6 +105,7 @@ exports.create = async (merchantId, data) => {
   const defaultCurrency = gatewayAccount && gatewayAccount.code === 'TRUSTPAY24' ? 'INR' : 'USD';
   const currency = (data.currency || defaultCurrency).trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) fail('Currency must be a three-letter code');
+  await repo.validateLimits(merchantId, amount, currency);
 
   const customerEmail = optionalString(data.customerEmail, 'Customer email', 150);
   if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {

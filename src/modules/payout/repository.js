@@ -1,5 +1,6 @@
 const db = require('../../config/db');
 const notifications = require('../notification/repository');
+const transactionLimits = require('../merchant/transaction-limits');
 
 function escaped(value) {
   return value.replace(/[!%_]/g, '!$&');
@@ -70,22 +71,14 @@ exports.create = async (data) => {
   let result;
   try {
     await connection.beginTransaction();
-    const [[merchant]] = await connection.query(
-      `SELECT payout_enabled, payout_commission
-       FROM merchant_details
-       WHERE merchant_id=?`,
-      [data.merchantId]
-    );
-    if (!merchant) {
-      const error = new Error('Merchant not found');
-      error.status = 404;
-      throw error;
-    }
-    if (!merchant.payout_enabled) {
-      const error = new Error('Payout is disabled for this merchant');
-      error.status = 403;
-      throw error;
-    }
+    const merchant = await transactionLimits.validate({
+      queryable: connection,
+      merchantId: data.merchantId,
+      direction: 'payout',
+      amount: data.amount,
+      currency: data.currency,
+      lock: true
+    });
 
     let providerName = data.providerName;
     if (data.gatewayAccountId) {
