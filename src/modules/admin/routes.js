@@ -7,6 +7,7 @@ const payinRoutes = require('../payin/routes');
 const payoutRoutes = require('../payout/admin-routes');
 const directFundRoutes = require('../direct-fund/admin-routes');
 const disputeRoutes = require('../dispute/admin-routes');
+const withdrawalRoutes = require('../withdrawal/admin-routes');
 const auth = require('../../middlewares/auth');
 const requireAdmin = require('../../middlewares/require-admin');
 const { loginRateLimit } = require('../../middlewares/rate-limit');
@@ -20,6 +21,7 @@ router.use('/gateways', gatewayRoutes);
 router.use('/payin', payinRoutes);
 router.use('/payout', payoutRoutes);
 router.use('/direct-fund-requests', directFundRoutes);
+router.use('/withdrawals', withdrawalRoutes);
 router.use('/disputes', disputeRoutes);
 
 module.exports = router;

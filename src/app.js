@@ -41,6 +41,7 @@ app.use('/api/dashboard', require('./modules/dashboard/merchant-routes'));
 app.use('/api/payin', require('./modules/payin/merchant-routes'));
 app.use('/api/disputes', require('./modules/dispute/merchant-routes'));
 app.use('/api/direct-fund-requests', require('./modules/direct-fund/merchant-routes'));
+app.use('/api/withdrawals', require('./modules/withdrawal/merchant-routes'));
 app.use('/api/tickets', require('./modules/ticket/merchant-routes'));
 app.use('/api/payments', require('./modules/payment/routes'));
 app.use('/api/payouts', require('./modules/payout/merchant-routes'));

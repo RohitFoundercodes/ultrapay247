@@ -55,6 +55,11 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/payouts`
 - `GET /api/payouts`
 - `GET /api/payouts/:id`
+- `POST /api/withdrawals`
+- `GET /api/withdrawals`
+- `GET /api/withdrawals/:requestId`
+- `GET /api/admin/withdrawals`
+- `PATCH /api/admin/withdrawals/:requestId/status`
 
 Payin, payment, and payout endpoints accept a merchant JWT or the generated
 `X-Merchant-Id` and `X-Merchant-Token` headers. Payout requests require payout
@@ -785,6 +790,35 @@ The summary includes `currentAmount`, `todayPendingSettlement`, `todayPayin`,
 `totalUpiPayout`, `todaySelfPayout`, and `totalSelfPayout`. It also includes
 `todayUncategorizedPayout` and `totalUncategorizedPayout` for payout requests
 without a type.
+
+## Merchant withdrawals
+
+Submit a withdrawal request with `POST /api/withdrawals`. The request accepts
+the merchant's beneficiary details in its body and requires an amount from
+₹500 through ₹25,000, with at most two decimal places:
+
+```json
+{
+  "fullName": "Example Merchant",
+  "accountNumber": "123456789012",
+  "ifsc": "ABCD0123456",
+  "bankName": "Example Bank",
+  "amount": 500
+}
+```
+
+The request is created as `pending`; funds are not reserved at submission.
+Bank account numbers are encrypted at rest and masked in the merchant's
+response. Merchants can list requests with `GET /api/withdrawals` and check a
+request with `GET /api/withdrawals/:requestId`.
+
+Admins can review requests with `GET /api/admin/withdrawals?status=pending`
+and approve or reject one with
+`PATCH /api/admin/withdrawals/:requestId/status`, using
+`{"status":"approved"}` or `{"status":"rejected","reviewNote":"..."}`.
+Approval debits the wallet atomically and fails if the available balance is
+insufficient. Approval does not initiate a bank transfer; processing remains
+manual.
 
 Admin payout endpoints support:
 
