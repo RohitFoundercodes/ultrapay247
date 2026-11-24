@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const notifications = require('../notification/repository');
 
 function decimalToCents(value) {
   const text = String(value);
@@ -22,16 +23,39 @@ const selectColumns = `
 `;
 
 exports.create = async (merchantId, request) => {
-  const [result] = await db.query(
-    `INSERT INTO merchant_withdrawal_requests (
-      merchant_id, full_name, bank_name, account_number_encrypted,
-      account_number_last4, ifsc, amount
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      merchantId, request.fullName, request.bankName, request.accountNumberEncrypted,
-      request.accountNumberLast4, request.ifsc, request.amount
-    ]
-  );
+  const connection = await db.getConnection();
+  let result;
+  try {
+    await connection.beginTransaction();
+    [result] = await connection.query(
+      `INSERT INTO merchant_withdrawal_requests (
+        merchant_id, full_name, bank_name, account_number_encrypted,
+        account_number_last4, ifsc, amount
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        merchantId, request.fullName, request.bankName, request.accountNumberEncrypted,
+        request.accountNumberLast4, request.ifsc, request.amount
+      ]
+    );
+    const requestCode = `WDR${String(result.insertId).padStart(6, '0')}`;
+    await notifications.createForAdmins(connection, {
+      category: 'withdrawal',
+      title: 'New withdrawal request',
+      message: `Merchant submitted withdrawal ${requestCode} for INR ${Number(request.amount).toFixed(2)}.`,
+      resourceType: 'withdrawal',
+      resourceId: requestCode
+    });
+    await connection.commit();
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back withdrawal creation:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
   return exports.getMerchantById(merchantId, result.insertId);
 };
 
@@ -170,6 +194,14 @@ exports.review = async (id, status, reviewNote, adminId) => {
        WHERE w.id=?`,
       [id]
     );
+    const requestCode = `WDR${String(request.id).padStart(6, '0')}`;
+    await notifications.createForMerchant(connection, request.merchant_id, {
+      category: 'withdrawal',
+      title: 'Withdrawal request updated',
+      message: `Withdrawal ${requestCode} was ${status}${reviewNote ? `: ${reviewNote}` : '.'}`,
+      resourceType: 'withdrawal',
+      resourceId: requestCode
+    });
     await connection.commit();
     return updatedRows[0];
   } catch (error) {

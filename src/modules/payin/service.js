@@ -150,6 +150,44 @@ exports.stats = async (query) => {
   return presentStats(row);
 };
 
+exports.updateAdminStatus = async (idValue, input) => {
+  if (typeof idValue !== 'string' || !/^[1-9][0-9]*$/.test(idValue) ||
+      !Number.isSafeInteger(Number(idValue))) {
+    invalid('Payin transaction ID is invalid');
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    invalid('Payin status update must be an object');
+  }
+  const allowedFields = new Set(['status', 'settlement', 'utr', 'paymentId']);
+  for (const field of Object.keys(input)) {
+    if (!allowedFields.has(field)) invalid(`Field ${field} cannot be updated`);
+  }
+  const updates = {};
+  if (input.status !== undefined) {
+    if (!validStatuses.has(input.status)) invalid('Invalid payin status');
+    updates.status = input.status;
+  }
+  if (input.settlement !== undefined) {
+    if (!validSettlementStatuses.has(input.settlement)) invalid('Invalid settlement status');
+    updates.settlement = input.settlement;
+  }
+  for (const field of ['utr', 'paymentId']) {
+    if (input[field] !== undefined) {
+      if (input[field] !== null && (typeof input[field] !== 'string' || input[field].trim().length > 100)) {
+        invalid(`${field} must be a string of at most 100 characters`);
+      }
+      updates[field] = input[field] === null ? null : input[field].trim() || null;
+    }
+  }
+  if (!Object.keys(updates).length) {
+    invalid('At least one supported status field must be provided');
+  }
+  if (!(await repository.updateAdminStatus(Number(idValue), updates))) {
+    invalid('Payin transaction not found', 404);
+  }
+  return exports.getById(idValue);
+};
+
 function csvCell(value) {
   const text = value === null || value === undefined ? '' : String(value);
   return `"${text.replace(/"/g, '""')}"`;

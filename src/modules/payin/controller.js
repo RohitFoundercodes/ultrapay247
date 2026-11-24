@@ -32,6 +32,14 @@ exports.stats = async (req, res, next) => {
   }
 };
 
+exports.updateStatus = async (req, res, next) => {
+  try {
+    res.json(await service.updateAdminStatus(req.params.id, req.body));
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.exportCsv = async (req, res, next) => {
   try {
     const csv = await service.exportCsv(req.query);

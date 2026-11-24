@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const notifications = require('../notification/repository');
 
 function escaped(value) {
   return value.replace(/[!%_]/g, '!$&');
@@ -65,56 +66,78 @@ const selectColumns = `
 `;
 
 exports.create = async (data) => {
-  const [[merchant]] = await db.query(
-    `SELECT payin_enabled, payout_enabled, payout_commission
-     FROM merchant_details
-     WHERE merchant_id=?`,
-    [data.merchantId]
-  );
-  if (!merchant) {
-    const error = new Error('Merchant not found');
-    error.status = 404;
-    throw error;
-  }
-  if (!merchant.payout_enabled) {
-    const error = new Error('Payout is disabled for this merchant');
-    error.status = 403;
-    throw error;
-  }
-
-  let providerName = data.providerName;
-  if (data.gatewayAccountId) {
-    const [gateways] = await db.query(
-      `SELECT provider_name
-       FROM payment_gateway_accounts
-       WHERE id=? AND status='enabled' AND direction IN ('payout', 'both')`,
-      [data.gatewayAccountId]
+  const connection = await db.getConnection();
+  let result;
+  try {
+    await connection.beginTransaction();
+    const [[merchant]] = await connection.query(
+      `SELECT payout_enabled, payout_commission
+       FROM merchant_details
+       WHERE merchant_id=?`,
+      [data.merchantId]
     );
-    if (!gateways.length) {
-      const error = new Error('Payout gateway account not found or disabled');
-      error.status = 400;
+    if (!merchant) {
+      const error = new Error('Merchant not found');
+      error.status = 404;
       throw error;
     }
-    if (!providerName) providerName = gateways[0].provider_name;
-  }
+    if (!merchant.payout_enabled) {
+      const error = new Error('Payout is disabled for this merchant');
+      error.status = 403;
+      throw error;
+    }
 
-  const commissionAmount = Math.round(
-    data.amount * Number(merchant.payout_commission) / 100 * 100
-  ) / 100;
-  const [result] = await db.query(
-    `INSERT INTO payout_transactions (
-      merchant_id, reference, order_id, gateway_account_id, provider_name, payout_type,
-      beneficiary_name, beneficiary_account_encrypted, beneficiary_account_last4,
-      beneficiary_ifsc, amount, commission_amount, net_amount, currency,
-      payment_id, customer_email, description
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.merchantId, data.reference, data.orderId, data.gatewayAccountId,
-      providerName, data.payoutType, data.beneficiaryName, data.accountNumberEncrypted,
-      data.accountNumberLast4, data.ifsc, data.amount, commissionAmount,
-      data.amount, data.currency, data.paymentId, data.customerEmail, data.description
-    ]
-  );
+    let providerName = data.providerName;
+    if (data.gatewayAccountId) {
+      const [gateways] = await connection.query(
+        `SELECT provider_name
+         FROM payment_gateway_accounts
+         WHERE id=? AND status='enabled' AND direction IN ('payout', 'both')`,
+        [data.gatewayAccountId]
+      );
+      if (!gateways.length) {
+        const error = new Error('Payout gateway account not found or disabled');
+        error.status = 400;
+        throw error;
+      }
+      if (!providerName) providerName = gateways[0].provider_name;
+    }
+
+    const commissionAmount = Math.round(
+      data.amount * Number(merchant.payout_commission) / 100 * 100
+    ) / 100;
+    [result] = await connection.query(
+      `INSERT INTO payout_transactions (
+        merchant_id, reference, order_id, gateway_account_id, provider_name, payout_type,
+        beneficiary_name, beneficiary_account_encrypted, beneficiary_account_last4,
+        beneficiary_ifsc, amount, commission_amount, net_amount, currency,
+        payment_id, customer_email, description
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.merchantId, data.reference, data.orderId, data.gatewayAccountId,
+        providerName, data.payoutType, data.beneficiaryName, data.accountNumberEncrypted,
+        data.accountNumberLast4, data.ifsc, data.amount, commissionAmount,
+        data.amount, data.currency, data.paymentId, data.customerEmail, data.description
+      ]
+    );
+    await notifications.createForAdmins(connection, {
+      category: 'payout',
+      title: 'New payout request',
+      message: `Merchant submitted payout ${data.reference} for ${data.currency} ${Number(data.amount).toFixed(2)}.`,
+      resourceType: 'payout',
+      resourceId: result.insertId
+    });
+    await connection.commit();
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back payout creation:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
   return exports.getMerchantById(data.merchantId, result.insertId);
 };
 
@@ -189,16 +212,55 @@ exports.updateStatus = async (id, updates) => {
     paymentId: 'payment_id'
   };
   const fields = Object.keys(updates);
-  const assignments = fields.map(field => `${columns[field]}=?`);
-  const values = fields.map(field => updates[field]);
-  const [result] = await db.query(
-    `UPDATE payout_transactions
-     SET ${assignments.join(', ')}, updated_at=CURRENT_TIMESTAMP
-     WHERE id=?`,
-    [...values, id]
-  );
-  if (result.affectedRows) return true;
-  return Boolean(await exports.getById(id));
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [transactions] = await connection.query(
+      `SELECT merchant_id, reference, status, settlement_status, utr, payment_id
+       FROM payout_transactions WHERE id=? FOR UPDATE`,
+      [id]
+    );
+    if (!transactions.length) {
+      await connection.rollback();
+      return false;
+    }
+    const transaction = transactions[0];
+    const changed = fields.some((field) => {
+      const currentField = field === 'settlement' ? 'settlement_status'
+        : field === 'paymentId' ? 'payment_id' : field;
+      return String(transaction[currentField] || '') !== String(updates[field] || '');
+    });
+    if (changed) {
+      const assignments = fields.map(field => `${columns[field]}=?`);
+      await connection.query(
+        `UPDATE payout_transactions
+         SET ${assignments.join(', ')}, updated_at=CURRENT_TIMESTAMP
+         WHERE id=?`,
+        [...fields.map(field => updates[field]), id]
+      );
+      const changes = [];
+      if (updates.status !== undefined) changes.push(`status is ${updates.status}`);
+      if (updates.settlement !== undefined) changes.push(`settlement is ${updates.settlement}`);
+      await notifications.createForMerchant(connection, transaction.merchant_id, {
+        category: 'payout',
+        title: 'Payout request updated',
+        message: `Payout ${transaction.reference} was updated${changes.length ? `: ${changes.join(', ')}` : '.'}`,
+        resourceType: 'payout',
+        resourceId: id
+      });
+    }
+    await connection.commit();
+    return true;
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back payout status update:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 exports.exportRows = async (filters) => {

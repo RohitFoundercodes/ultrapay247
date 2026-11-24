@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const notifications = require('../notification/repository');
 
 const ticketSelect = `SELECT t.id, t.merchant_id, d.merchant_code, m.name AS merchant_name,
   m.email AS merchant_email, d.mobile AS merchant_mobile, t.subject, t.category,
@@ -50,6 +51,13 @@ exports.create = async (merchantId, ticket, message, attachments) => {
       { type: 'merchant', id: merchantId },
       attachments
     );
+    await notifications.createForAdmins(connection, {
+      category: 'ticket',
+      title: 'New merchant support ticket',
+      message: `Merchant created support ticket TKT${String(ticketId).padStart(6, '0')}: ${ticket.subject}.`,
+      resourceType: 'ticket',
+      resourceId: `TKT${String(ticketId).padStart(6, '0')}`
+    });
     await connection.commit();
     return ticketId;
   } catch (error) {
@@ -187,7 +195,7 @@ exports.addMessage = async (ticketId, actor, message, attachments) => {
   try {
     await connection.beginTransaction();
     const [tickets] = await connection.query(
-      `SELECT status FROM support_tickets
+      `SELECT status, merchant_id, subject FROM support_tickets
        WHERE id=?${actor.type === 'merchant' ? ' AND merchant_id=?' : ''}
        FOR UPDATE`,
       actor.type === 'merchant' ? [ticketId, actor.id] : [ticketId]
@@ -211,6 +219,24 @@ exports.addMessage = async (ticketId, actor, message, attachments) => {
       'UPDATE support_tickets SET updated_at=CURRENT_TIMESTAMP WHERE id=?',
       [ticketId]
     );
+    const ticketCode = `TKT${String(ticketId).padStart(6, '0')}`;
+    if (actor.type === 'admin') {
+      await notifications.createForMerchant(connection, tickets[0].merchant_id, {
+        category: 'ticket_reply',
+        title: 'New support ticket reply',
+        message: `An admin replied to support ticket ${ticketCode}: ${tickets[0].subject}.`,
+        resourceType: 'ticket',
+        resourceId: ticketCode
+      });
+    } else {
+      await notifications.createForAdmins(connection, {
+        category: 'ticket_reply',
+        title: 'New merchant ticket reply',
+        message: `Merchant replied to support ticket ${ticketCode}: ${tickets[0].subject}.`,
+        resourceType: 'ticket',
+        resourceId: ticketCode
+      });
+    }
     await connection.commit();
     return { notFound: false, closed: false };
   } catch (error) {
@@ -226,15 +252,46 @@ exports.addMessage = async (ticketId, actor, message, attachments) => {
 };
 
 exports.updateStatus = async (ticketId, status) => {
-  const [result] = await db.query(
-    `UPDATE support_tickets
-     SET status=?,
-       resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE NULL END,
-       closed_at=CASE WHEN ?='closed' THEN CURRENT_TIMESTAMP ELSE NULL END
-     WHERE id=?`,
-    [status, status, status, ticketId]
-  );
-  if (result.affectedRows) return true;
-  const [rows] = await db.query('SELECT id FROM support_tickets WHERE id=?', [ticketId]);
-  return rows.length > 0;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [tickets] = await connection.query(
+      'SELECT merchant_id, subject, status FROM support_tickets WHERE id=? FOR UPDATE',
+      [ticketId]
+    );
+    if (!tickets.length) {
+      await connection.rollback();
+      return false;
+    }
+    const ticket = tickets[0];
+    if (ticket.status !== status) {
+      await connection.query(
+        `UPDATE support_tickets
+         SET status=?,
+           resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE NULL END,
+           closed_at=CASE WHEN ?='closed' THEN CURRENT_TIMESTAMP ELSE NULL END
+         WHERE id=?`,
+        [status, status, status, ticketId]
+      );
+      const ticketCode = `TKT${String(ticketId).padStart(6, '0')}`;
+      await notifications.createForMerchant(connection, ticket.merchant_id, {
+        category: 'ticket',
+        title: 'Support ticket status updated',
+        message: `Support ticket ${ticketCode} was updated to ${status}.`,
+        resourceType: 'ticket',
+        resourceId: ticketCode
+      });
+    }
+    await connection.commit();
+    return true;
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back support ticket status update:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
 };

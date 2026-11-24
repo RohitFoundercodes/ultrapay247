@@ -35,6 +35,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/payin/stats`
 - `GET /api/admin/payin/transactions`
 - `GET /api/admin/payin/transactions/:id`
+- `PATCH /api/admin/payin/transactions/:id/status`
 - `GET /api/admin/payin/export.csv`
 - `POST /api/payin/request`
 - `GET /api/payin/request`
@@ -60,6 +61,12 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/withdrawals/:requestId`
 - `GET /api/admin/withdrawals`
 - `PATCH /api/admin/withdrawals/:requestId/status`
+- `GET /api/notifications`
+- `PATCH /api/notifications/:id/read`
+- `PATCH /api/notifications/read-all`
+- `GET /api/admin/notifications`
+- `PATCH /api/admin/notifications/:id/read`
+- `PATCH /api/admin/notifications/read-all`
 
 Payin, payment, and payout endpoints accept a merchant JWT or the generated
 `X-Merchant-Id` and `X-Merchant-Token` headers. Payout requests require payout
@@ -132,6 +139,12 @@ Both list APIs support `search`, `provider`, `status`, `settlement`, `from`,
 `to`, `page`, and `limit`. Dates use `YYYY-MM-DD`; `limit` defaults to 20 and
 cannot exceed 100. Results and dashboard stats are always scoped to the
 authenticated merchant.
+
+Admins can update a payin using
+`PATCH /api/admin/payin/transactions/:id/status` with an admin JWT. The request
+can include any supported combination of `status` (`pending`, `succeeded`,
+`failed`, `refunded`), `settlement` (`pending`, `settled`, `failed`), `utr`,
+and `paymentId`. A changed payin creates a merchant notification.
 
 ## API rate limits
 
@@ -793,32 +806,214 @@ without a type.
 
 ## Merchant withdrawals
 
-Submit a withdrawal request with `POST /api/withdrawals`. The request accepts
-the merchant's beneficiary details in its body and requires an amount from
-₹500 through ₹25,000, with at most two decimal places:
+Merchant withdrawal APIs require merchant authentication and payout to be
+enabled. Send the merchant JWT as `Authorization: Bearer <merchant-token>`.
 
-```json
+### Create a withdrawal request
+
+Submit a request with `POST /api/withdrawals`. The amount must be from ₹500
+through ₹25,000 and can contain at most two decimal places. Account numbers
+must contain 6-20 digits, and IFSC codes must use the standard four letters,
+zero, and six alphanumeric characters.
+
+```http
+POST /api/withdrawals
+Authorization: Bearer <merchant-token>
+Content-Type: application/json
+
 {
-  "fullName": "Example Merchant",
-  "accountNumber": "123456789012",
-  "ifsc": "ABCD0123456",
+  "fullName": "Iramna Benkattil",
   "bankName": "Example Bank",
-  "amount": 500
+  "accountNumber": "309030211360",
+  "ifsc": "RATN0000258",
+  "amount": 5000
 }
 ```
 
-The request is created as `pending`; funds are not reserved at submission.
-Bank account numbers are encrypted at rest and masked in the merchant's
-response. Merchants can list requests with `GET /api/withdrawals` and check a
-request with `GET /api/withdrawals/:requestId`.
+A successful request returns HTTP `201`:
 
-Admins can review requests with `GET /api/admin/withdrawals?status=pending`
-and approve or reject one with
-`PATCH /api/admin/withdrawals/:requestId/status`, using
-`{"status":"approved"}` or `{"status":"rejected","reviewNote":"..."}`.
-Approval debits the wallet atomically and fails if the available balance is
-insufficient. Approval does not initiate a bank transfer; processing remains
-manual.
+```json
+{
+  "id": "WDR000001",
+  "merchantId": "MRC_0123456789ABCDEF01234567",
+  "fullName": "Iramna Benkattil",
+  "bankName": "Example Bank",
+  "accountNumber": "****1360",
+  "ifsc": "RATN0000258",
+  "amount": 5000,
+  "status": "pending",
+  "reviewNote": null,
+  "reviewedBy": null,
+  "reviewedAt": null,
+  "createdAt": "2026-11-20T11:20:00+05:30",
+  "updatedAt": "2026-11-20T11:20:00+05:30"
+}
+```
+
+The bank account number is encrypted at rest. Merchant responses show only the
+last four digits. No funds are reserved or debited when the request is created.
+
+### List merchant withdrawal requests
+
+```http
+GET /api/withdrawals
+Authorization: Bearer <merchant-token>
+```
+
+The response contains only requests belonging to the authenticated merchant,
+ordered by newest first, with a maximum of 100 requests:
+
+```json
+{
+  "requests": [
+    {
+      "id": "WDR000001",
+      "fullName": "Iramna Benkattil",
+      "bankName": "Example Bank",
+      "accountNumber": "****1360",
+      "ifsc": "RATN0000258",
+      "amount": 5000,
+      "status": "pending",
+      "reviewNote": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "createdAt": "2026-11-20T11:20:00+05:30",
+      "updatedAt": "2026-11-20T11:20:00+05:30"
+    }
+  ]
+}
+```
+
+### Get a merchant withdrawal request
+
+```http
+GET /api/withdrawals/WDR000001
+Authorization: Bearer <merchant-token>
+```
+
+The `requestId` can be the formatted ID (`WDR000001`) or the numeric ID
+(`1`). Requests that belong to another merchant return HTTP `404`.
+
+### Admin withdrawal list
+
+List and filter withdrawal requests as an admin:
+
+```http
+GET /api/admin/withdrawals?status=pending&page=1&limit=20
+Authorization: Bearer <admin-token>
+```
+
+Supported query parameters:
+
+- `status`: `pending`, `approved`, or `rejected`
+- `page`: positive integer; defaults to `1`
+- `limit`: positive integer from `1` through `100`; defaults to `20`
+
+The response includes paginated requests, the pagination summary, and applied
+status filter:
+
+```json
+{
+  "requests": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 0,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  },
+  "filters": {
+    "status": "pending"
+  }
+}
+```
+
+Admin responses include the full encrypted account number in decrypted form
+after the admin token is authenticated.
+
+### Approve or reject a withdrawal request
+
+```http
+PATCH /api/admin/withdrawals/WDR000001/status
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+```
+
+Approve:
+
+```json
+{
+  "status": "approved"
+}
+```
+
+Reject:
+
+```json
+{
+  "status": "rejected",
+  "reviewNote": "Beneficiary details could not be verified"
+}
+```
+
+The review note is optional for both outcomes and is limited to 255 characters.
+Only `status` and `reviewNote` can be submitted. Approval is atomic: it verifies
+the merchant wallet balance, debits the ledger, and updates the request. It
+returns HTTP `409` if the balance is insufficient or if a reviewed request is
+changed to a different status. Approval does not initiate a bank transfer;
+processing remains manual.
+
+## Notifications
+
+Notifications are stored per recipient and are available through the merchant
+and admin APIs. The application does not push notifications over a live
+connection; clients can poll the list endpoint and refresh the unread count.
+
+Merchant submissions create admin notifications for payins, payouts,
+withdrawals, direct fund requests, disputes, support tickets, and merchant
+replies to support tickets. Admin payin and payout status updates, withdrawal
+and direct fund reviews, dispute decisions, ticket status changes, and admin
+ticket replies create notifications for the affected merchant.
+
+List the signed-in user's newest notifications:
+
+```http
+GET /api/notifications?unreadOnly=true&page=1&limit=20
+Authorization: Bearer <merchant-token>
+```
+
+Admins use the equivalent endpoint with an admin JWT:
+
+```http
+GET /api/admin/notifications?unreadOnly=true&page=1&limit=20
+Authorization: Bearer <admin-token>
+```
+
+`unreadOnly` accepts `true` or `false` and defaults to `false`. `page` defaults
+to `1`; `limit` defaults to `20` and must be from `1` through `100`. The
+response includes `notifications`, `unreadCount`, `pagination`, and the applied
+filter. Each notification includes its `id`, `category`, `title`, `message`,
+optional `resourceType` and `resourceId`, `isRead`, `readAt`, and `createdAt`.
+Merchant and admin notification lists are isolated to the authenticated user.
+
+Mark one of your notifications as read:
+
+```http
+PATCH /api/notifications/123/read
+Authorization: Bearer <merchant-token>
+```
+
+Mark all of your notifications as read:
+
+```http
+PATCH /api/notifications/read-all
+Authorization: Bearer <merchant-token>
+```
+
+Use the corresponding `/api/admin/notifications/...` paths and admin JWT for
+admin notifications. Attempts to access another recipient's notification
+return HTTP `404`.
 
 Admin payout endpoints support:
 

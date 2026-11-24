@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const notifications = require('../notification/repository');
 
 function escaped(value) {
   return value.replace(/[!%_]/g, '!$&');
@@ -95,6 +96,14 @@ exports.create = async (merchantId, dispute) => {
         dispute.amount, payment.currency || 'INR', dispute.reason, dispute.description
       ]
     );
+    const disputeCode = `DSP${String(result.insertId).padStart(6, '0')}`;
+    await notifications.createForAdmins(connection, {
+      category: 'dispute',
+      title: 'New merchant dispute',
+      message: `Merchant opened dispute ${disputeCode} for transaction ${payment.reference}.`,
+      resourceType: 'dispute',
+      resourceId: disputeCode
+    });
     await connection.commit();
     return { id: result.insertId };
   } catch (error) {
@@ -162,7 +171,7 @@ exports.updateStatus = async (id, status, reviewNote, adminId) => {
   try {
     await connection.beginTransaction();
     const [disputes] = await connection.query(
-      'SELECT status FROM disputes WHERE id=? FOR UPDATE',
+      'SELECT status, merchant_id, transaction_id FROM disputes WHERE id=? FOR UPDATE',
       [id]
     );
     if (!disputes.length) {
@@ -193,6 +202,14 @@ exports.updateStatus = async (id, status, reviewNote, adminId) => {
        WHERE id=?`,
       [status, reviewNote, adminId, id]
     );
+    const disputeCode = `DSP${String(id).padStart(6, '0')}`;
+    await notifications.createForMerchant(connection, disputes[0].merchant_id, {
+      category: 'dispute',
+      title: 'Dispute status updated',
+      message: `Dispute ${disputeCode} for transaction ${disputes[0].transaction_id} was updated to ${status}.`,
+      resourceType: 'dispute',
+      resourceId: disputeCode
+    });
     await connection.commit();
     return { notFound: false };
   } catch (error) {

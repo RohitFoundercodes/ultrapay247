@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const notifications = require('../notification/repository');
 
 function decimalToCents(value) {
   const text = String(value);
@@ -73,12 +74,35 @@ const joins = `
 `;
 
 exports.create = async (merchantId, request) => {
-  const [result] = await db.query(
-    `INSERT INTO direct_fund_requests
-      (merchant_id, amount, description, utr, receipt_url)
-     VALUES (?, ?, ?, ?, ?)`,
-    [merchantId, request.amount, request.description, request.utr, request.receiptUrl]
-  );
+  const connection = await db.getConnection();
+  let result;
+  try {
+    await connection.beginTransaction();
+    [result] = await connection.query(
+      `INSERT INTO direct_fund_requests
+        (merchant_id, amount, description, utr, receipt_url)
+       VALUES (?, ?, ?, ?, ?)`,
+      [merchantId, request.amount, request.description, request.utr, request.receiptUrl]
+    );
+    const requestCode = `DFR${String(result.insertId).padStart(6, '0')}`;
+    await notifications.createForAdmins(connection, {
+      category: 'direct_fund',
+      title: 'New direct fund request',
+      message: `Merchant submitted direct fund request ${requestCode} for INR ${Number(request.amount).toFixed(2)}.`,
+      resourceType: 'direct_fund',
+      resourceId: requestCode
+    });
+    await connection.commit();
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back direct fund request creation:', rollbackError.message);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
   return exports.getMerchantById(merchantId, result.insertId);
 };
 
@@ -232,6 +256,14 @@ exports.review = async (id, status, reviewNote) => {
       `SELECT ${selectColumns} ${joins} WHERE r.id=?`,
       [id]
     );
+    const requestCode = `DFR${String(request.id).padStart(6, '0')}`;
+    await notifications.createForMerchant(connection, request.merchant_id, {
+      category: 'direct_fund',
+      title: 'Direct fund request updated',
+      message: `Direct fund request ${requestCode} was updated to ${status}${reviewNote ? `: ${reviewNote}` : '.'}`,
+      resourceType: 'direct_fund',
+      resourceId: requestCode
+    });
     await connection.commit();
     return updatedRows[0];
   } catch (error) {

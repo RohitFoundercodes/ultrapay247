@@ -38,6 +38,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok', service: 'UltraPay' })
 app.use('/api/auth', require('./modules/user/routes'));
 app.use('/api/admin', require('./modules/admin/routes'));
 app.use('/api/dashboard', require('./modules/dashboard/merchant-routes'));
+app.use(
+  '/api/notifications',
+  require('./middlewares/merchant-auth'),
+  require('./modules/notification/routes')('merchant')
+);
 app.use('/api/payin', require('./modules/payin/merchant-routes'));
 app.use('/api/disputes', require('./modules/dispute/merchant-routes'));
 app.use('/api/direct-fund-requests', require('./modules/direct-fund/merchant-routes'));
