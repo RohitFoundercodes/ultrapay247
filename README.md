@@ -10,6 +10,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/auth/me`
 - `PATCH /api/auth/me`
 - `PATCH /api/auth/change-password`
+- `GET /api/dashboard`
 - `POST /api/admin/login`
 - `PATCH /api/admin/change-password`
 - `POST /api/admin/merchants`
@@ -721,11 +722,15 @@ Merchants can submit payout requests with `POST /api/payouts`. The merchant
 must have payouts enabled. Requests are created with `pending` status and do
 not initiate a bank transfer; an administrator or integrated payout provider
 must process the request and update its status.
+Requests may include `payoutType` (`IMPS`, `UPI`, or `SELF`) for dashboard
+totals. It remains optional for backward compatibility; requests without a
+type and existing payouts appear as uncategorized in the dashboard.
 
 ```json
 {
   "reference": "PO-10001",
   "orderId": "ORDER-10001",
+  "payoutType": "IMPS",
   "amount": 2500.00,
   "currency": "INR",
   "beneficiaryName": "Example Recipient",
@@ -741,6 +746,27 @@ Payout responses expose only the last four digits. The merchant can list their
 requests with `GET /api/payouts` or retrieve one with `GET /api/payouts/:id`.
 The list response includes dashboard stats, filtered transactions, and
 pagination metadata.
+
+## Merchant dashboard
+
+`GET /api/dashboard` returns the authenticated merchant's current wallet
+balance, payin totals, payout totals by payout type, and today's pending
+settlement amount. Optional `from` and `to` query parameters use
+`YYYY-MM-DD` and filter total amounts; the cards labeled `today` always use
+the current database date. Transaction totals include INR transactions only.
+Settlement totals include successful INR payins and payouts created today
+whose settlement status is pending.
+
+```http
+GET /api/dashboard?from=2026-11-01&to=2026-11-21
+Authorization: Bearer <merchant-token>
+```
+
+The summary includes `currentAmount`, `todayPendingSettlement`, `todayPayin`,
+`totalPayin`, `todayImpsPayout`, `totalImpsPayout`, `todayUpiPayout`,
+`totalUpiPayout`, `todaySelfPayout`, and `totalSelfPayout`. It also includes
+`todayUncategorizedPayout` and `totalUncategorizedPayout` for payout requests
+without a type.
 
 Admin payout endpoints support:
 

@@ -101,6 +101,7 @@ function present(row) {
     merchantId: row.merchant_id,
     companyName: row.company_name,
     provider: row.provider_name,
+    payoutType: row.payout_type,
     beneficiaryName: row.beneficiary_name,
     beneficiaryAccount: `****${row.beneficiary_account_last4}`,
     beneficiaryIfsc: row.beneficiary_ifsc,
@@ -157,7 +158,7 @@ function presentList(result, stats, filters) {
 function normalizeCreate(input) {
   objectInput(input, 'Payout request');
   const allowedFields = new Set([
-    'reference', 'orderId', 'gatewayAccountId', 'providerName',
+    'reference', 'orderId', 'gatewayAccountId', 'providerName', 'payoutType',
     'beneficiaryName', 'accountNumber', 'ifsc', 'amount', 'currency',
     'paymentId', 'customerEmail', 'description'
   ]);
@@ -188,6 +189,14 @@ function normalizeCreate(input) {
     gatewayAccountId = Number(value);
   }
   const providerName = optionalString(input, 'providerName', 100);
+  let payoutType = null;
+  if (input.payoutType !== undefined && input.payoutType !== null) {
+    if (typeof input.payoutType !== 'string' ||
+        !['IMPS', 'UPI', 'SELF'].includes(input.payoutType.trim().toUpperCase())) {
+      invalid('Payout type must be IMPS, UPI, or SELF');
+    }
+    payoutType = input.payoutType.trim().toUpperCase();
+  }
   const paymentId = optionalString(input, 'paymentId', 100);
   const customerEmail = optionalString(input, 'customerEmail', 150);
   const description = optionalString(input, 'description', 255);
@@ -196,7 +205,7 @@ function normalizeCreate(input) {
   }
 
   return {
-    reference, orderId, gatewayAccountId, providerName, beneficiaryName,
+    reference, orderId, gatewayAccountId, providerName, payoutType, beneficiaryName,
     accountNumberEncrypted: encrypt(accountNumber),
     accountNumberLast4: accountNumber.slice(-4),
     ifsc, amount: Math.round(amount * 100) / 100, currency, paymentId,

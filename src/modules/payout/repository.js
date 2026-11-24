@@ -57,7 +57,7 @@ function buildWhere(filters) {
 const selectColumns = `
   p.id, p.merchant_id AS merchant_record_id, p.created_at, p.reference,
   p.order_id, p.gateway_account_id, d.merchant_code AS merchant_id,
-  d.company_name, p.provider_name, p.beneficiary_name,
+  d.company_name, p.provider_name, p.payout_type, p.beneficiary_name,
   p.beneficiary_account_last4, p.beneficiary_ifsc, p.amount,
   p.commission_amount, p.net_amount, p.currency, p.payment_id,
   p.status, p.settlement_status, p.utr, p.customer_email,
@@ -103,14 +103,14 @@ exports.create = async (data) => {
   ) / 100;
   const [result] = await db.query(
     `INSERT INTO payout_transactions (
-      merchant_id, reference, order_id, gateway_account_id, provider_name,
+      merchant_id, reference, order_id, gateway_account_id, provider_name, payout_type,
       beneficiary_name, beneficiary_account_encrypted, beneficiary_account_last4,
       beneficiary_ifsc, amount, commission_amount, net_amount, currency,
       payment_id, customer_email, description
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.merchantId, data.reference, data.orderId, data.gatewayAccountId,
-      providerName, data.beneficiaryName, data.accountNumberEncrypted,
+      providerName, data.payoutType, data.beneficiaryName, data.accountNumberEncrypted,
       data.accountNumberLast4, data.ifsc, data.amount, commissionAmount,
       data.amount, data.currency, data.paymentId, data.customerEmail, data.description
     ]
