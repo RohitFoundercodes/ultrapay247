@@ -126,7 +126,7 @@ exports.getAll = async ({ search, status, payinEnabled, payoutEnabled, limit, of
              WHEN first_entry.entry_type='debit' THEN -first_entry.amount
              ELSE 0 END
             FROM merchant_wallet_ledger first_entry
-            WHERE first_entry.merchant_id=merchant_wallet_ledger.merchant_id
+            WHERE first_entry.merchant_id=ledger.merchant_id
             ORDER BY first_entry.id ASC LIMIT 1) AS opening_balance
          FROM merchant_wallet_ledger ledger
          GROUP BY ledger.merchant_id
