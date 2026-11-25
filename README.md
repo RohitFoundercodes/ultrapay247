@@ -12,6 +12,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `PATCH /api/auth/change-password`
 - `GET /api/dashboard`
 - `POST /api/admin/login`
+- `GET /api/admin/login-logs`
 - `PATCH /api/admin/change-password`
 - `POST /api/admin/merchants`
 - `GET /api/admin/merchants`
@@ -89,6 +90,11 @@ Payin, payment, and payout endpoints accept a merchant JWT or the generated
 to be enabled for the merchant. Admin payout endpoints require an admin JWT.
 Payout creation records a pending request; it does not initiate a bank transfer.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
+Admin login accepts optional `deviceId` and `deviceName` values together and
+records successful and failed credential attempts with the request IP address
+in `admin_login_logs`. Review logs with `GET /api/admin/login-logs`; it accepts
+`search`, `status` (`success` or `failure`), `from`, `to`, `page`, and `limit`.
+The log endpoint requires an admin JWT.
 Merchant management endpoints require an admin JWT.
 Settlement endpoints require an admin JWT. Settlement amounts are recorded as
 payin amount minus charge; filter lists and totals by `search`, `mode`, `status`,

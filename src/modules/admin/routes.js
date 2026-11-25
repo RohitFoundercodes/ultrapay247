@@ -17,6 +17,7 @@ const { loginRateLimit } = require('../../middlewares/rate-limit');
 
 router.post('/login', loginRateLimit, controller.login);
 router.use(auth, requireAdmin);
+router.get('/login-logs', controller.getLoginLogs);
 router.patch('/change-password', controller.changePassword);
 router.use('/notifications', notificationRoutes('admin'));
 router.use('/wallet', walletRoutes);
