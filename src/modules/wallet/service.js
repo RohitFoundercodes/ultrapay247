@@ -173,13 +173,7 @@ exports.getMerchants = async (query) => {
   return { ...merchants, summary };
 };
 
-exports.getMerchantSummary = async (merchantCode, query) => {
-  if (typeof merchantCode !== 'string' || !merchantCode.trim() || merchantCode.length > 50) {
-    invalid('Merchant ID is invalid');
-  }
-  const filters = merchantLedgerFilters(query);
-  const row = await repository.getMerchantSummary(merchantCode.trim(), filters);
-  if (!row) invalid('Merchant not found', 404);
+function presentMerchantSummary(row, filters) {
   const openingBalance = Number(row.opening_balance || 0);
   const totalCredit = Number(row.total_credit || 0);
   const totalDebit = Number(row.total_debit || 0);
@@ -216,6 +210,16 @@ exports.getMerchantSummary = async (merchantCode, query) => {
       to: filters.to || null
     }
   };
+}
+
+exports.getMerchantSummary = async (merchantCode, query) => {
+  if (typeof merchantCode !== 'string' || !merchantCode.trim() || merchantCode.length > 50) {
+    invalid('Merchant ID is invalid');
+  }
+  const filters = merchantLedgerFilters(query);
+  const row = await repository.getMerchantSummary(merchantCode.trim(), filters);
+  if (!row) invalid('Merchant not found', 404);
+  return presentMerchantSummary(row, filters);
 };
 
 exports.getMerchantLedgerTransactions = async (merchantCode, query) => {
@@ -223,9 +227,15 @@ exports.getMerchantLedgerTransactions = async (merchantCode, query) => {
     invalid('Merchant ID is invalid');
   }
   const filters = merchantLedgerFilters(query);
-  const { rows, total } = await repository.getMerchantTransactions(merchantCode.trim(), filters);
+  const [summaryRow, transactionResult] = await Promise.all([
+    repository.getMerchantSummary(merchantCode.trim(), filters),
+    repository.getMerchantTransactions(merchantCode.trim(), filters)
+  ]);
+  if (!summaryRow) invalid('Merchant not found', 404);
+  const { rows, total } = transactionResult;
   const totalPages = Math.ceil(total / filters.limit);
   return {
+    summary: presentMerchantSummary(summaryRow, filters),
     transactions: rows.map(row => ({
       id: row.id,
       transactionId: row.transaction_id,

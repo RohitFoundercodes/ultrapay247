@@ -91,7 +91,9 @@ rows per export. Credit/debit entries use the existing ledger validation and
 require a unique reference per merchant.
 Merchant wallet details are available at
 `GET /api/admin/wallet/merchants/:merchantId/summary` and
-`GET /api/admin/wallet/merchants/:merchantId/transactions`. The latter accepts
+`GET /api/admin/wallet/merchants/:merchantId/transactions`. The transactions
+response includes the same merchant, wallet, and commission summary under
+`summary`. The endpoint accepts
 `search`, `source` (`payin`, `payout`, `directFund`, or `wallet`), `type`
 (`credit`, `debit`, `commission`, or `pending`), `status`, `from`, `to`,
 `page`, and `limit`. Transaction opening/closing balances are populated only
