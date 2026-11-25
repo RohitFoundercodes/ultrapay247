@@ -29,6 +29,12 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/wallet/transactions`
 - `GET /api/admin/wallet/statement.csv`
 - `POST /api/admin/wallet/merchants/:merchantId/entries`
+- `GET /api/admin/settlements`
+- `GET /api/admin/settlements/stats`
+- `GET /api/admin/settlements/export.csv`
+- `POST /api/admin/settlements`
+- `GET /api/admin/settlements/:settlementId`
+- `PATCH /api/admin/settlements/:settlementId/status`
 - `GET /api/admin/tickets`
 - `GET /api/admin/tickets/stats`
 - `GET /api/admin/tickets/:ticketId`
@@ -81,6 +87,28 @@ to be enabled for the merchant. Admin payout endpoints require an admin JWT.
 Payout creation records a pending request; it does not initiate a bank transfer.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
 Merchant management endpoints require an admin JWT.
+Settlement endpoints require an admin JWT. Settlement amounts are recorded as
+payin amount minus charge; filter lists and totals by `search`, `mode`, `status`,
+`from`, `to`, `page`, and `limit`. CSV exports are limited to 10,000 rows.
+Creating or updating a settlement records administrative settlement details and
+does not initiate a bank transfer.
+Create a settlement with `POST /api/admin/settlements` using a merchant code,
+payin amount, optional charge, and optional mode:
+
+```json
+{
+  "merchantId": "MCH0001",
+  "payinAmount": 500000,
+  "charge": 2500,
+  "mode": "IMPS",
+  "status": "pending"
+}
+```
+
+The settled amount is calculated as payin amount minus charge. A record created
+as `settled` must include its settlement date and UTR. Update the status and
+settlement metadata with `PATCH /api/admin/settlements/:settlementId/status`;
+settling a record requires a UTR.
 Wallet endpoints require an admin JWT. Wallet merchant listings accept the same
 search and payin/payout filters as `GET /api/admin/merchants`, and include
 opening balance, total credits, and total debits. The listing response also
