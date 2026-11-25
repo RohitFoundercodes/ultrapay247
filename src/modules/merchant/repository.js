@@ -108,16 +108,28 @@ exports.getAll = async ({ search, status, payinEnabled, payoutEnabled, limit, of
         m.created_at, m.updated_at, d.created_at AS details_created_at,
         d.updated_at AS details_updated_at, d.merchant_token_last4,
         COALESCE(w.wallet_balance, 0) AS wallet_balance,
-        COALESCE(w.total_commission, 0) AS total_commission
+        COALESCE(w.total_commission, 0) AS total_commission,
+        COALESCE(w.total_credit, 0) AS total_credit,
+        COALESCE(w.total_debit, 0) AS total_debit,
+        COALESCE(w.opening_balance, 0) AS opening_balance
        FROM merchants m
        LEFT JOIN merchant_details d ON d.merchant_id=m.id
        LEFT JOIN (
          SELECT merchant_id,
            SUM(CASE WHEN entry_type='credit' THEN amount
              WHEN entry_type='debit' THEN -amount ELSE 0 END) AS wallet_balance,
-           SUM(commission_amount) AS total_commission
-         FROM merchant_wallet_ledger
-         GROUP BY merchant_id
+           SUM(commission_amount) AS total_commission,
+           SUM(CASE WHEN entry_type='credit' THEN amount ELSE 0 END) AS total_credit,
+           SUM(CASE WHEN entry_type='debit' THEN amount ELSE 0 END) AS total_debit,
+           (SELECT first_entry.balance_after - CASE
+             WHEN first_entry.entry_type='credit' THEN first_entry.amount
+             WHEN first_entry.entry_type='debit' THEN -first_entry.amount
+             ELSE 0 END
+            FROM merchant_wallet_ledger first_entry
+            WHERE first_entry.merchant_id=merchant_wallet_ledger.merchant_id
+            ORDER BY first_entry.id ASC LIMIT 1) AS opening_balance
+         FROM merchant_wallet_ledger ledger
+         GROUP BY ledger.merchant_id
        ) w ON w.merchant_id=m.id
        ${where}
        ORDER BY m.id DESC

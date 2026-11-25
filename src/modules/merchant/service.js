@@ -150,6 +150,11 @@ function present(row) {
       : null,
     walletBalance: Number(row.wallet_balance || 0),
     totalCommission: Number(row.total_commission || 0),
+    ...(row.total_credit === undefined ? {} : {
+      openingBalance: Number(row.opening_balance || 0),
+      totalCredit: Number(row.total_credit || 0),
+      totalDebit: Number(row.total_debit || 0)
+    }),
     createdAt: toKolkataIso(row.created_at),
     updatedAt: toKolkataIso(row.updated_at),
     detailsCreatedAt: toKolkataIso(row.details_created_at),

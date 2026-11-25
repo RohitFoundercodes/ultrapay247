@@ -22,6 +22,11 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/admin/merchants/:merchantId/token/reset`
 - `GET /api/admin/merchants/:merchantId/ledger`
 - `POST /api/admin/merchants/:merchantId/ledger`
+- `GET /api/admin/wallet/summary`
+- `GET /api/admin/wallet/merchants`
+- `GET /api/admin/wallet/transactions`
+- `GET /api/admin/wallet/statement.csv`
+- `POST /api/admin/wallet/merchants/:merchantId/entries`
 - `GET /api/admin/tickets`
 - `GET /api/admin/tickets/stats`
 - `GET /api/admin/tickets/:ticketId`
@@ -55,16 +60,16 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `PATCH /api/payments/:id/status`
 - `POST /api/payouts`
 - `GET /api/payouts`
-- `GET /api/payouts/:id`
-- `POST /api/withdrawals`
-- `GET /api/withdrawals`
-- `GET /api/withdrawals/:requestId`
-- `GET /api/admin/withdrawals`
+- `GET   /api/payouts/:id`
+- `POST  /api/withdrawals`
+- `GET   /api/withdrawals`
+- `GET   /api/withdrawals/:requestId`
+- `GET   /api/admin/withdrawals`
 - `PATCH /api/admin/withdrawals/:requestId/status`
-- `GET /api/notifications`
+- `GET   /api/notifications`
 - `PATCH /api/notifications/:id/read`
 - `PATCH /api/notifications/read-all`
-- `GET /api/admin/notifications`
+- `GET   /api/admin/notifications`
 - `PATCH /api/admin/notifications/:id/read`
 - `PATCH /api/admin/notifications/read-all`
 
@@ -74,6 +79,13 @@ to be enabled for the merchant. Admin payout endpoints require an admin JWT.
 Payout creation records a pending request; it does not initiate a bank transfer.
 Admin login returns an admin-role JWT and never includes the password hash in its response.
 Merchant management endpoints require an admin JWT.
+Wallet endpoints require an admin JWT. Wallet merchant listings accept the same
+search and payin/payout filters as `GET /api/admin/merchants`, and include
+opening balance, total credits, and total debits. Wallet transaction history
+supports `search`, `merchantId`, `type`, `from`, `to`, `page`, and `limit`
+filters. Statement downloads accept the same filters and are limited to 10,000
+rows per export. Credit/debit entries use the existing ledger validation and
+require a unique reference per merchant.
 
 ## Payin requests
 
