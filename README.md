@@ -32,6 +32,9 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `GET /api/admin/settlements`
 - `GET /api/admin/settlements/stats`
 - `GET /api/admin/settlements/export.csv`
+- `GET /api/admin/settlements/daily`
+- `GET /api/admin/settlements/daily/stats`
+- `GET /api/admin/settlements/daily/export.csv`
 - `POST /api/admin/settlements`
 - `GET /api/admin/settlements/:settlementId`
 - `PATCH /api/admin/settlements/:settlementId/status`
@@ -109,6 +112,13 @@ The settled amount is calculated as payin amount minus charge. A record created
 as `settled` must include its settlement date and UTR. Update the status and
 settlement metadata with `PATCH /api/admin/settlements/:settlementId/status`;
 settling a record requires a UTR.
+
+The daily settlement report returns transaction/settlement dates, payin amount,
+charge, settled amount, and opening/closing balances. It accepts `search`,
+`mode`, `status`, `transactionFrom`, `transactionTo`, `settlementFrom`,
+`settlementTo`, `page`, and `limit`. Its balances are derived from the initial
+merchant ledger balance and earlier settled records; the report does not post
+wallet transactions or initiate bank transfers.
 Wallet endpoints require an admin JWT. Wallet merchant listings accept the same
 search and payin/payout filters as `GET /api/admin/merchants`, and include
 opening balance, total credits, and total debits. The listing response also

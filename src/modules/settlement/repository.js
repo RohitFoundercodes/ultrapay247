@@ -35,6 +35,49 @@ function buildWhere(filters) {
   };
 }
 
+function buildDailyWhere(filters, includeStatus = true) {
+  const conditions = [];
+  const values = [];
+  if (includeStatus && filters.status) {
+    conditions.push('s.status=?');
+    values.push(filters.status);
+  }
+  if (filters.mode) {
+    conditions.push('s.mode=?');
+    values.push(filters.mode);
+  }
+  if (filters.transactionFrom) {
+    conditions.push('s.created_at>=?');
+    values.push(`${filters.transactionFrom} 00:00:00`);
+  }
+  if (filters.transactionTo) {
+    conditions.push('s.created_at<DATE_ADD(?, INTERVAL 1 DAY)');
+    values.push(filters.transactionTo);
+  }
+  if (filters.settlementFrom) {
+    conditions.push('s.settlement_date>=?');
+    values.push(filters.settlementFrom);
+  }
+  if (filters.settlementTo) {
+    conditions.push('s.settlement_date<=?');
+    values.push(filters.settlementTo);
+  }
+  if (filters.search) {
+    const escapedSearch = filters.search.replace(/[!%_]/g, '!$&');
+    const searchValue = `%${escapedSearch}%`;
+    conditions.push(`(
+      CONCAT('ST', LPAD(s.id, 6, '0')) LIKE ? ESCAPE '!'
+      OR d.merchant_code LIKE ? ESCAPE '!' OR d.company_name LIKE ? ESCAPE '!'
+      OR s.utr LIKE ? ESCAPE '!'
+    )`);
+    values.push(searchValue, searchValue, searchValue, searchValue);
+  }
+  return {
+    where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+    values
+  };
+}
+
 const joins = `
   FROM merchant_settlements s
   JOIN merchants m ON m.id=s.merchant_id
@@ -69,6 +112,92 @@ exports.stats = async (filters) => {
     `SELECT
        COALESCE(SUM(CASE WHEN s.status='settled' THEN s.settled_amount ELSE 0 END), 0) AS total_settled_amount,
        COALESCE(SUM(CASE WHEN s.status='pending' THEN s.settled_amount ELSE 0 END), 0) AS pending_settlement,
+       COALESCE(SUM(CASE WHEN s.status='processing' THEN s.settled_amount ELSE 0 END), 0) AS processing,
+       COALESCE(SUM(CASE WHEN s.status='failed' THEN s.settled_amount ELSE 0 END), 0) AS failed_settlement
+     ${joins}
+     ${where}`,
+    values
+  );
+  return rows[0];
+};
+
+exports.dailyList = async (filters) => {
+  const { where, values } = buildDailyWhere(filters);
+  const [countResult, rowsResult] = await Promise.all([
+    db.query(`SELECT COUNT(*) AS total ${joins} ${where}`, values),
+    db.query(
+      `SELECT s.id, DATE_FORMAT(s.created_at, '%Y-%m-%d') AS transaction_date,
+        DATE_FORMAT(s.settlement_date, '%Y-%m-%d') AS settlement_date,
+        s.payin_amount, s.charge_amount, s.settled_amount, s.mode, s.utr, s.status,
+        s.created_at, s.updated_at, d.merchant_code, d.company_name,
+        m.name AS merchant_name,
+        COALESCE((
+          SELECT previous_entry.balance_after
+          FROM merchant_wallet_ledger previous_entry
+          WHERE previous_entry.merchant_id=s.merchant_id
+            AND previous_entry.created_at<s.created_at
+          ORDER BY previous_entry.created_at DESC, previous_entry.id DESC LIMIT 1
+        ), (
+          SELECT first_entry.balance_after - CASE
+            WHEN first_entry.entry_type='credit' THEN first_entry.amount
+            WHEN first_entry.entry_type='debit' THEN -first_entry.amount
+            ELSE 0 END
+          FROM merchant_wallet_ledger first_entry
+          WHERE first_entry.merchant_id=s.merchant_id
+          ORDER BY first_entry.id ASC LIMIT 1
+        ), 0) + COALESCE((
+          SELECT SUM(previous.settled_amount)
+          FROM merchant_settlements previous
+          WHERE previous.merchant_id=s.merchant_id
+            AND previous.status='settled'
+            AND (previous.created_at<s.created_at
+              OR (previous.created_at=s.created_at AND previous.id<s.id))
+        ), 0) AS opening_balance,
+        COALESCE((
+          SELECT previous_entry.balance_after
+          FROM merchant_wallet_ledger previous_entry
+          WHERE previous_entry.merchant_id=s.merchant_id
+            AND previous_entry.created_at<s.created_at
+          ORDER BY previous_entry.created_at DESC, previous_entry.id DESC LIMIT 1
+        ), (
+          SELECT first_entry.balance_after - CASE
+            WHEN first_entry.entry_type='credit' THEN first_entry.amount
+            WHEN first_entry.entry_type='debit' THEN -first_entry.amount
+            ELSE 0 END
+          FROM merchant_wallet_ledger first_entry
+          WHERE first_entry.merchant_id=s.merchant_id
+          ORDER BY first_entry.id ASC LIMIT 1
+        ), 0) + COALESCE((
+          SELECT SUM(previous.settled_amount)
+          FROM merchant_settlements previous
+          WHERE previous.merchant_id=s.merchant_id
+            AND previous.status='settled'
+            AND (previous.created_at<s.created_at
+              OR (previous.created_at=s.created_at AND previous.id<s.id))
+        ), 0) + CASE WHEN s.status='settled' THEN s.settled_amount ELSE 0 END
+          AS closing_balance
+       ${joins}
+       ${where}
+       ORDER BY s.created_at DESC, s.id DESC
+       LIMIT ? OFFSET ?`,
+      [...values, filters.limit, filters.offset]
+    )
+  ]);
+  return {
+    rows: rowsResult[0],
+    total: Number(countResult[0][0].total)
+  };
+};
+
+exports.dailyStats = async (filters) => {
+  const { where, values } = buildDailyWhere(filters, false);
+  const [rows] = await db.query(
+    `SELECT
+       COALESCE(SUM(CASE WHEN s.status='settled' THEN s.settled_amount ELSE 0 END), 0) AS total_settlement_amount,
+       COALESCE(SUM(CASE WHEN s.status='pending' THEN s.settled_amount ELSE 0 END), 0) AS pending_settlement,
+       COALESCE(SUM(CASE WHEN s.status='settled' AND s.settlement_date=CURDATE()
+         THEN s.settled_amount ELSE 0 END), 0) AS todays_settlement,
+       COALESCE(SUM(s.charge_amount), 0) AS total_charges,
        COALESCE(SUM(CASE WHEN s.status='processing' THEN s.settled_amount ELSE 0 END), 0) AS processing,
        COALESCE(SUM(CASE WHEN s.status='failed' THEN s.settled_amount ELSE 0 END), 0) AS failed_settlement
      ${joins}

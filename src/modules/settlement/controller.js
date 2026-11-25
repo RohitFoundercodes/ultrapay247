@@ -16,6 +16,33 @@ exports.stats = async (req, res, next) => {
   }
 };
 
+exports.dailyList = async (req, res, next) => {
+  try {
+    res.json(await service.dailyList(req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.dailyStats = async (req, res, next) => {
+  try {
+    res.json(await service.dailyStats(req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.exportDailyCsv = async (req, res, next) => {
+  try {
+    const csv = await service.exportDailyCsv(req.query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="daily-settlements.csv"');
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getById = async (req, res, next) => {
   try {
     res.json(await service.getById(req.params.settlementId));

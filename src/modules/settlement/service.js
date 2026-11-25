@@ -68,6 +68,62 @@ function filtersFrom(query, exportMode = false) {
   return { search, status, mode, from, to, page, limit, offset };
 }
 
+function dailyFiltersFrom(query, exportMode = false) {
+  objectInput(query, 'Daily settlement filters');
+  const search = queryString(query, 'search');
+  const statusValue = queryString(query, 'status');
+  const modeValue = queryString(query, 'mode');
+  const transactionFrom = parseDate(
+    queryString(query, 'transactionFrom'),
+    'Transaction from date'
+  );
+  const transactionTo = parseDate(
+    queryString(query, 'transactionTo'),
+    'Transaction to date'
+  );
+  const settlementFrom = parseDate(
+    queryString(query, 'settlementFrom'),
+    'Settlement from date'
+  );
+  const settlementTo = parseDate(
+    queryString(query, 'settlementTo'),
+    'Settlement to date'
+  );
+  const status = statusValue && statusValue.toLowerCase() !== 'all'
+    ? statusValue.toLowerCase()
+    : undefined;
+  const mode = modeValue && modeValue.toLowerCase() !== 'all'
+    ? modeValue.toUpperCase()
+    : undefined;
+  if (search && search.length > 100) invalid('Search must be at most 100 characters');
+  if (status && !statuses.has(status)) invalid('Status must be pending, processing, settled, or failed');
+  if (mode && !modes.has(mode)) invalid('Mode must be IMPS, NEFT, RTGS, or UPI');
+  if (transactionFrom && transactionTo && transactionFrom > transactionTo) {
+    invalid('Transaction from date cannot be after transaction to date');
+  }
+  if (settlementFrom && settlementTo && settlementFrom > settlementTo) {
+    invalid('Settlement from date cannot be after settlement to date');
+  }
+
+  const pageValue = queryString(query, 'page');
+  const limitValue = queryString(query, 'limit');
+  const page = exportMode ? 1 : (pageValue === undefined ? 1 : Number(pageValue));
+  const limit = exportMode
+    ? maxExportRows
+    : (limitValue === undefined ? 20 : Number(limitValue));
+  if (!Number.isSafeInteger(page) || page < 1) invalid('Page must be a positive integer');
+  if (!Number.isSafeInteger(limit) || limit < 1 ||
+      limit > (exportMode ? maxExportRows : maxPageSize)) {
+    invalid(`Limit must be between 1 and ${exportMode ? maxExportRows : maxPageSize}`);
+  }
+  const offset = (page - 1) * limit;
+  if (!Number.isSafeInteger(offset)) invalid('Page is too large');
+  return {
+    search, status, mode, transactionFrom, transactionTo,
+    settlementFrom, settlementTo, page, limit, offset
+  };
+}
+
 function amount(value, label, allowZero = true) {
   if ((typeof value !== 'number' && typeof value !== 'string') ||
       (typeof value === 'string' && !/^\d+(?:\.\d{1,2})?$/.test(value.trim()))) {
@@ -174,6 +230,65 @@ exports.stats = async (query) => {
   return presentStats(await repository.stats(filters));
 };
 
+function presentDailyStats(row) {
+  return {
+    totalSettlementAmount: Number(row.total_settlement_amount || 0),
+    pendingSettlement: Number(row.pending_settlement || 0),
+    todaysSettlement: Number(row.todays_settlement || 0),
+    totalCharges: Number(row.total_charges || 0),
+    processing: Number(row.processing || 0),
+    failedSettlement: Number(row.failed_settlement || 0)
+  };
+}
+
+function presentDailyRow(row) {
+  return {
+    ...present(row),
+    transactionDate: row.transaction_date,
+    openingBalance: Number(row.opening_balance || 0),
+    closingBalance: Number(row.closing_balance || 0)
+  };
+}
+
+function presentDailyList(result, stats, filters) {
+  const totalPages = Math.ceil(result.total / filters.limit);
+  return {
+    stats: presentDailyStats(stats),
+    settlements: result.rows.map(presentDailyRow),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total: result.total,
+      totalPages,
+      hasNextPage: filters.page < totalPages,
+      hasPreviousPage: filters.page > 1 && result.total > 0
+    },
+    filters: {
+      search: filters.search || null,
+      mode: filters.mode || null,
+      status: filters.status || null,
+      transactionFrom: filters.transactionFrom || null,
+      transactionTo: filters.transactionTo || null,
+      settlementFrom: filters.settlementFrom || null,
+      settlementTo: filters.settlementTo || null
+    }
+  };
+}
+
+exports.dailyList = async (query) => {
+  const filters = dailyFiltersFrom(query);
+  const [result, stats] = await Promise.all([
+    repository.dailyList(filters),
+    repository.dailyStats(filters)
+  ]);
+  return presentDailyList(result, stats, filters);
+};
+
+exports.dailyStats = async (query) => {
+  const filters = dailyFiltersFrom(query);
+  return presentDailyStats(await repository.dailyStats(filters));
+};
+
 exports.getById = async (idValue) => {
   const row = await repository.getById(parseId(idValue));
   if (!row) invalid('Settlement not found', 404);
@@ -265,6 +380,31 @@ exports.exportCsv = async (query) => {
         item.id, item.merchantId, item.merchantName, item.companyName,
         item.settlementDate, item.payinAmount, item.charge, item.settledAmount,
         item.mode, item.utr, item.status
+      ].map(csvCell).join(',');
+    })
+  ].join('\r\n');
+};
+
+exports.exportDailyCsv = async (query) => {
+  const filters = dailyFiltersFrom(query, true);
+  const result = await repository.dailyList(filters);
+  if (result.total > maxExportRows) {
+    invalid(`Daily settlement export is limited to ${maxExportRows} rows; narrow the filters`, 413);
+  }
+  const headers = [
+    'Settlement ID', 'Merchant ID', 'Company Name', 'Transaction Date',
+    'Settlement Date', 'Payin Amount (INR)', 'Charge (INR)',
+    'Settled Amount (INR)', 'Opening Balance (INR)', 'Closing Balance (INR)',
+    'Status'
+  ];
+  return [
+    headers.map(csvCell).join(','),
+    ...result.rows.map(row => {
+      const item = presentDailyRow(row);
+      return [
+        item.id, item.merchantId, item.companyName, item.transactionDate,
+        item.settlementDate, item.payinAmount, item.charge, item.settledAmount,
+        item.openingBalance, item.closingBalance, item.status
       ].map(csvCell).join(',');
     })
   ].join('\r\n');
