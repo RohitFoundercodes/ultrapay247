@@ -125,6 +125,20 @@ charge, settled amount, and opening/closing balances. It accepts `search`,
 `settlementTo`, `page`, and `limit`. Its balances are derived from the initial
 merchant ledger balance and earlier settled records; the report does not post
 wallet transactions or initiate bank transfers.
+
+For local development, seed one sample settlement (shown by both settlement
+list APIs) after migrations have run and merchant `MCH0001` exists. The script
+is idempotent and requires explicit development opt-in:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:ALLOW_SAMPLE_SETTLEMENT_SEED = 'true'
+npm run settlement:seed:sample
+```
+
+Set `SAMPLE_SETTLEMENT_MERCHANT_CODE` to use another existing merchant. The
+sample is a settled ₹5,00,000 payin with ₹2,500 charges and a ₹4,97,500
+settled amount dated November 16, 2026. This is demo data, not a real transfer.
 Wallet endpoints require an admin JWT. Wallet merchant listings accept the same
 search and payin/payout filters as `GET /api/admin/merchants`, and include
 opening balance, total credits, and total debits. The listing response also
