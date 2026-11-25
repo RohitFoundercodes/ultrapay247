@@ -17,6 +17,22 @@ exports.getMerchants = async (req, res, next) => {
   }
 };
 
+exports.getMerchantSummary = async (req, res, next) => {
+  try {
+    res.json(await service.getMerchantSummary(req.params.merchantId, req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getMerchantTransactions = async (req, res, next) => {
+  try {
+    res.json(await service.getMerchantLedgerTransactions(req.params.merchantId, req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getTransactions = async (req, res, next) => {
   try {
     res.json(await service.getTransactions(req.query));

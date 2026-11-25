@@ -24,6 +24,8 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `POST /api/admin/merchants/:merchantId/ledger`
 - `GET /api/admin/wallet/summary`
 - `GET /api/admin/wallet/merchants`
+- `GET /api/admin/wallet/merchants/:merchantId/summary`
+- `GET /api/admin/wallet/merchants/:merchantId/transactions`
 - `GET /api/admin/wallet/transactions`
 - `GET /api/admin/wallet/statement.csv`
 - `POST /api/admin/wallet/merchants/:merchantId/entries`
@@ -81,11 +83,20 @@ Admin login returns an admin-role JWT and never includes the password hash in it
 Merchant management endpoints require an admin JWT.
 Wallet endpoints require an admin JWT. Wallet merchant listings accept the same
 search and payin/payout filters as `GET /api/admin/merchants`, and include
-opening balance, total credits, and total debits. Wallet transaction history
+opening balance, total credits, and total debits. The listing response also
+includes the global wallet totals in its `summary` property. Wallet transaction history
 supports `search`, `merchantId`, `type`, `from`, `to`, `page`, and `limit`
 filters. Statement downloads accept the same filters and are limited to 10,000
 rows per export. Credit/debit entries use the existing ledger validation and
 require a unique reference per merchant.
+Merchant wallet details are available at
+`GET /api/admin/wallet/merchants/:merchantId/summary` and
+`GET /api/admin/wallet/merchants/:merchantId/transactions`. The latter accepts
+`search`, `source` (`payin`, `payout`, `directFund`, or `wallet`), `type`
+(`credit`, `debit`, `commission`, or `pending`), `status`, `from`, `to`,
+`page`, and `limit`. Transaction opening/closing balances are populated only
+when the transaction has a matching wallet-ledger posting; payin/payout records
+that have not changed the wallet balance return `null` for those fields.
 
 ## Payin requests
 
