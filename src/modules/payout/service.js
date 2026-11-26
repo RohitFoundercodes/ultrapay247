@@ -1,4 +1,6 @@
 const repository = require('./repository');
+const gatewayService = require('../gateway/service');
+const createTrustpay24 = require('../gateway/trustpay24');
 const { encrypt } = require('../../utils/encryption');
 const { toKolkataIso } = require('../../utils/time');
 
@@ -160,7 +162,7 @@ function normalizeCreate(input) {
   const allowedFields = new Set([
     'reference', 'orderId', 'gatewayAccountId', 'providerName', 'payoutType',
     'beneficiaryName', 'accountNumber', 'ifsc', 'amount', 'currency',
-    'paymentId', 'customerEmail', 'description'
+    'paymentId', 'customerEmail', 'description', 'narration'
   ]);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) invalid(`Field ${field} is not supported`);
@@ -200,23 +202,53 @@ function normalizeCreate(input) {
   const paymentId = optionalString(input, 'paymentId', 100);
   const customerEmail = optionalString(input, 'customerEmail', 150);
   const description = optionalString(input, 'description', 255);
+  const narration = optionalString(input, 'narration', 255);
   if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
     invalid('Customer email is invalid');
   }
 
   return {
     reference, orderId, gatewayAccountId, providerName, payoutType, beneficiaryName,
+    beneficiaryAccountNumber: accountNumber,
     accountNumberEncrypted: encrypt(accountNumber),
     accountNumberLast4: accountNumber.slice(-4),
     ifsc, amount: Math.round(amount * 100) / 100, currency, paymentId,
-    customerEmail, description
+    customerEmail, description, narration
   };
 }
 
 exports.create = async (merchantId, input) => {
   const data = normalizeCreate(input);
+  let gatewayResponse;
+  if (data.gatewayAccountId) {
+    const gatewayAccount = await gatewayService.getPayoutIntegrationAccount(data.gatewayAccountId);
+    if (gatewayAccount.code === 'TRUSTPAY24') {
+      if (data.currency !== 'INR') invalid('TrustPay24 payouts must use INR');
+      await repository.validateLimits(merchantId, data.amount, data.currency);
+      gatewayResponse = await createTrustpay24.createPayout({
+        reference: data.reference,
+        amount: data.amount,
+        beneficiary: {
+          name: data.beneficiaryName,
+          accountNumber: data.beneficiaryAccountNumber,
+          ifsc: data.ifsc
+        },
+        narration: data.narration || data.description || data.reference
+      });
+      if (!data.paymentId) {
+        const remoteId = gatewayResponse.paymentId || gatewayResponse.id;
+        if (typeof remoteId === 'string' || typeof remoteId === 'number') {
+          data.paymentId = String(remoteId);
+        }
+      }
+    }
+  }
+  const record = { ...data };
+  delete record.beneficiaryAccountNumber;
+  delete record.narration;
   try {
-    return present(await repository.create({ ...data, merchantId }));
+    const payout = present(await repository.create({ ...record, merchantId }));
+    return gatewayResponse ? { ...payout, gatewayResponse } : payout;
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') invalid('Payout reference already exists', 409);
     throw error;

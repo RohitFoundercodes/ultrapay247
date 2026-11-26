@@ -240,6 +240,14 @@ exports.getPayinIntegrationAccount = async (idValue) => {
   };
 };
 
+exports.getPayoutIntegrationAccount = async (idValue) => {
+  const row = await repository.getById(parseId(String(idValue)));
+  if (!row || row.status !== 'enabled' || !['payout', 'both'].includes(row.direction)) {
+    invalid('Payout gateway account not found or disabled', 400);
+  }
+  return { code: row.gateway_code };
+};
+
 exports.create = async (input) => {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     invalid('A gateway account object is required');

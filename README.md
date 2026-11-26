@@ -255,6 +255,32 @@ and active filters. Merchant payout listing with `GET /api/payouts` returns the
 equivalent payout stats (`totalPayout`, `todayPayout`, `successfulPayout`,
 `pendingPayout`, `failedPayout`, and `totalCommission`).
 
+Create a payout with `POST /api/payouts`. For a TrustPay24 payout, supply an
+enabled `TRUSTPAY24` gateway account configured for `payout` (or `both`). The
+merchant API accepts beneficiary fields individually and sends them in the
+nested format required by TrustPay24:
+
+```http
+POST /api/payouts
+Authorization: Bearer <merchant-token>
+Content-Type: application/json
+
+{
+  "reference": "WD-55012",
+  "amount": 2500.00,
+  "gatewayAccountId": 1,
+  "beneficiaryName": "Asha Kumar",
+  "accountNumber": "123456789012",
+  "ifsc": "HDFC0001234",
+  "narration": "Withdrawal 55012"
+}
+```
+
+The payout uses INR by default and includes the TrustPay24 response as
+`gatewayResponse`. A provider payout ID is saved as `paymentId` when returned.
+The payout remains pending until its status is updated; other gateway accounts
+continue to create local pending records only.
+
 Both list APIs support `search`, `provider`, `status`, `settlement`, `from`,
 `to`, `page`, and `limit`. Dates use `YYYY-MM-DD`; `limit` defaults to 20 and
 cannot exceed 100. Results and dashboard stats are always scoped to the

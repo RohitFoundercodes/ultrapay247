@@ -1,6 +1,6 @@
 const https = require('https');
 
-const endpoint = new URL('https://control.trustpay24.online/api/merchant/v1/payins');
+const endpointBase = 'https://control.trustpay24.online/api/merchant/v1/';
 const maximumResponseBytes = 1024 * 1024;
 const timeoutMilliseconds = 15000;
 
@@ -28,7 +28,8 @@ function credentialsFromEnvironment() {
   return { apiKey, apiSecret };
 }
 
-module.exports = async (payload) => {
+function submit(payload, flow) {
+  const endpoint = new URL(`${endpointBase}${flow}s`);
   const credentials = credentialsFromEnvironment();
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
@@ -64,15 +65,15 @@ module.exports = async (payload) => {
           result = responseBytes ? JSON.parse(responseText) : {};
         } catch (error) {
           if (providerStatus < 200 || providerStatus >= 300) {
-            console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
+            console.error(`[TrustPay24] ${flow} request returned HTTP ${providerStatus}`);
             reject(providerError(
-              `TrustPay24 rejected the payin request (HTTP ${providerStatus})`,
+              `TrustPay24 rejected the ${flow} request (HTTP ${providerStatus})`,
               clientErrorStatus(providerStatus),
               responseText.replace(/[\r\n\t]/g, ' ').slice(0, 1000) || null
             ));
             return;
           }
-          console.error(`[TrustPay24] invalid JSON response (HTTP ${providerStatus})`);
+          console.error(`[TrustPay24] invalid ${flow} response (HTTP ${providerStatus})`);
           reject(providerError('TrustPay24 returned an invalid response'));
           return;
         }
@@ -87,9 +88,9 @@ module.exports = async (payload) => {
           const gatewayResponse = result && typeof result === 'object' && !Array.isArray(result)
             ? result
             : responseText.replace(/[\r\n\t]/g, ' ').slice(0, 1000) || null;
-          console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
+          console.error(`[TrustPay24] ${flow} request returned HTTP ${providerStatus}`);
           reject(providerError(
-            `TrustPay24 rejected the payin request (HTTP ${providerStatus})${safeMessage ? `: ${safeMessage}` : ''}`,
+            `TrustPay24 rejected the ${flow} request (HTTP ${providerStatus})${safeMessage ? `: ${safeMessage}` : ''}`,
             clientErrorStatus(providerStatus),
             gatewayResponse
           ));
@@ -97,7 +98,7 @@ module.exports = async (payload) => {
         }
 
         if (!result || typeof result !== 'object' || Array.isArray(result)) {
-          console.error(`[TrustPay24] unexpected response format (HTTP ${providerStatus})`);
+          console.error(`[TrustPay24] unexpected ${flow} response format (HTTP ${providerStatus})`);
           reject(providerError('TrustPay24 returned an invalid response'));
           return;
         }
@@ -119,4 +120,7 @@ module.exports = async (payload) => {
     });
     request.end(body);
   });
-};
+}
+
+module.exports = (payload) => submit(payload, 'payin');
+module.exports.createPayout = (payload) => submit(payload, 'payout');

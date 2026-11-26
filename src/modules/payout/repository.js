@@ -2,6 +2,15 @@ const db = require('../../config/db');
 const notifications = require('../notification/repository');
 const transactionLimits = require('../merchant/transaction-limits');
 
+exports.validateLimits = async (merchantId, amount, currency) => (
+  transactionLimits.validate({
+    merchantId,
+    direction: 'payout',
+    amount,
+    currency
+  })
+);
+
 function escaped(value) {
   return value.replace(/[!%_]/g, '!$&');
 }
