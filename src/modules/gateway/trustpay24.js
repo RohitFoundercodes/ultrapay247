@@ -18,7 +18,9 @@ function credentialsFromEnvironment() {
   const apiKey = (process.env.TRUSTPAY24_API_KEY || '').trim();
   const apiSecret = (process.env.TRUSTPAY24_API_SECRET || '').trim();
   if (!apiKey || !apiSecret) {
-    const error = new Error('TrustPay24 credentials are not configured');
+    const error = new Error(
+      'TrustPay24 credentials are not configured; set TRUSTPAY24_API_KEY and TRUSTPAY24_API_SECRET'
+    );
     error.status = 503;
     throw error;
   }
