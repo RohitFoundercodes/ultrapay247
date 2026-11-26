@@ -7,3 +7,11 @@ exports.getDashboard = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getAdminDashboard = async (req, res, next) => {
+  try {
+    res.json(await service.getAdminDashboard());
+  } catch (error) {
+    next(error);
+  }
+};

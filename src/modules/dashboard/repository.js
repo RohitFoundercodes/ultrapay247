@@ -94,3 +94,74 @@ exports.getDashboard = async (merchantId, filters) => {
     todayUncategorizedPayout: payout.today_uncategorized_payout
   };
 };
+
+exports.getAdminDashboard = async () => {
+  const [merchantRows, payinRows, payoutRows, settlementRows, walletRows] = await Promise.all([
+    db.query(
+      `SELECT COUNT(*) AS total_merchants,
+        COALESCE(SUM(status='active'), 0) AS active_merchants
+       FROM merchants`
+    ),
+    db.query(
+      `SELECT
+        COALESCE(SUM(amount), 0) AS total_payin,
+        COALESCE(SUM(CASE WHEN DATE(created_at)=CURDATE() THEN amount ELSE 0 END), 0) AS today_payin,
+        COALESCE(SUM(CASE WHEN DATE(created_at)=DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+          THEN amount ELSE 0 END), 0) AS yesterday_payin,
+        COALESCE(SUM(commission_amount), 0) AS payin_commission
+       FROM payments
+       WHERE currency='INR'`
+    ),
+    db.query(
+      `SELECT
+        COALESCE(SUM(amount), 0) AS total_payout,
+        COALESCE(SUM(CASE WHEN DATE(created_at)=CURDATE() THEN amount ELSE 0 END), 0) AS today_payout,
+        COALESCE(SUM(CASE WHEN DATE(created_at)=DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+          THEN amount ELSE 0 END), 0) AS yesterday_payout,
+        COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END), 0) AS pending_payout,
+        COALESCE(SUM(commission_amount), 0) AS payout_commission
+       FROM payout_transactions
+       WHERE currency='INR'`
+    ),
+    db.query(
+      `SELECT
+        COALESCE(SUM(CASE WHEN status='pending' THEN settled_amount ELSE 0 END), 0)
+          AS pending_settlement,
+        COALESCE(SUM(CASE WHEN status='settled' AND settlement_date=CURDATE()
+          THEN settled_amount ELSE 0 END), 0) AS today_settlement,
+        COALESCE(SUM(CASE WHEN status='settled' THEN settled_amount ELSE 0 END), 0)
+          AS total_settlement
+       FROM merchant_settlements`
+    ),
+    db.query(
+      `SELECT COALESCE(SUM(CASE
+        WHEN entry_type='credit' THEN amount
+        WHEN entry_type='debit' THEN -amount
+        ELSE 0
+      END), 0) AS total_wallet_balance
+       FROM merchant_wallet_ledger`
+    )
+  ]);
+  const merchants = merchantRows[0][0];
+  const payin = payinRows[0][0];
+  const payout = payoutRows[0][0];
+  const settlement = settlementRows[0][0];
+  const wallet = walletRows[0][0];
+  return {
+    totalMerchants: merchants.total_merchants,
+    activeMerchants: merchants.active_merchants,
+    totalPayin: payin.total_payin,
+    todayPayin: payin.today_payin,
+    yesterdayPayin: payin.yesterday_payin,
+    totalPayout: payout.total_payout,
+    todayPayout: payout.today_payout,
+    yesterdayPayout: payout.yesterday_payout,
+    pendingPayout: payout.pending_payout,
+    totalWalletBalance: wallet.total_wallet_balance,
+    pendingSettlement: settlement.pending_settlement,
+    todaySettlement: settlement.today_settlement,
+    totalSettlement: settlement.total_settlement,
+    payinCommission: payin.payin_commission,
+    payoutCommission: payout.payout_commission
+  };
+};

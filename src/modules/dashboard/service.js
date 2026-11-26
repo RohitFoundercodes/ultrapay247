@@ -64,3 +64,38 @@ exports.getDashboard = async (merchantId, query) => {
     }
   };
 };
+
+exports.getAdminDashboard = async () => {
+  const result = await repository.getAdminDashboard();
+  const payinCommission = Number(result.payinCommission || 0);
+  const payoutCommission = Number(result.payoutCommission || 0);
+  return {
+    currency: 'INR',
+    merchantOverview: {
+      totalMerchants: Number(result.totalMerchants || 0),
+      activeMerchants: Number(result.activeMerchants || 0)
+    },
+    payinOverview: {
+      totalPayin: Number(result.totalPayin || 0),
+      todayPayin: Number(result.todayPayin || 0),
+      yesterdayPayin: Number(result.yesterdayPayin || 0)
+    },
+    payoutOverview: {
+      totalPayout: Number(result.totalPayout || 0),
+      todayPayout: Number(result.todayPayout || 0),
+      yesterdayPayout: Number(result.yesterdayPayout || 0),
+      pendingPayout: Number(result.pendingPayout || 0)
+    },
+    walletSettlement: {
+      totalWalletBalance: Number(result.totalWalletBalance || 0),
+      pendingSettlement: Number(result.pendingSettlement || 0),
+      todaySettlement: Number(result.todaySettlement || 0),
+      totalSettlement: Number(result.totalSettlement || 0)
+    },
+    commission: {
+      totalCommission: Math.round((payinCommission + payoutCommission) * 100) / 100,
+      payinCommission,
+      payoutCommission
+    }
+  };
+};

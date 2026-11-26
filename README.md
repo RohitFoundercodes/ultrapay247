@@ -12,6 +12,7 @@ UltraPay is a payment gateway API built with Express and MySQL.
 - `PATCH /api/auth/change-password`
 - `GET /api/dashboard`
 - `POST /api/admin/login`
+- `GET /api/admin/dashboard`
 - `GET /api/admin/login-logs`
 - `PATCH /api/admin/change-password`
 - `POST /api/admin/merchants`
@@ -95,6 +96,42 @@ records successful and failed credential attempts with the request IP address
 in `admin_login_logs`. Review logs with `GET /api/admin/login-logs`; it accepts
 `search`, `status` (`success` or `failure`), `from`, `to`, `page`, and `limit`.
 The log endpoint requires an admin JWT.
+`GET /api/admin/dashboard` requires an admin JWT and returns the INR merchant,
+payin, payout, wallet, settlement, and commission totals used by the admin
+overview. Today and yesterday values use the database's Asia/Kolkata date.
+
+```json
+{
+  "currency": "INR",
+  "merchantOverview": {
+    "totalMerchants": 0,
+    "activeMerchants": 0
+  },
+  "payinOverview": {
+    "totalPayin": 0,
+    "todayPayin": 0,
+    "yesterdayPayin": 0
+  },
+  "payoutOverview": {
+    "totalPayout": 0,
+    "todayPayout": 0,
+    "yesterdayPayout": 0,
+    "pendingPayout": 0
+  },
+  "walletSettlement": {
+    "totalWalletBalance": 0,
+    "pendingSettlement": 0,
+    "todaySettlement": 0,
+    "totalSettlement": 0
+  },
+  "commission": {
+    "totalCommission": 0,
+    "payinCommission": 0,
+    "payoutCommission": 0
+  }
+}
+```
+
 Merchant management endpoints require an admin JWT.
 Settlement endpoints require an admin JWT. Settlement amounts are recorded as
 payin amount minus charge; filter lists and totals by `search`, `mode`, `status`,

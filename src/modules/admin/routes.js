@@ -11,12 +11,14 @@ const withdrawalRoutes = require('../withdrawal/admin-routes');
 const notificationRoutes = require('../notification/routes');
 const walletRoutes = require('../wallet/admin-routes');
 const settlementRoutes = require('../settlement/admin-routes');
+const dashboardController = require('../dashboard/controller');
 const auth = require('../../middlewares/auth');
 const requireAdmin = require('../../middlewares/require-admin');
 const { loginRateLimit } = require('../../middlewares/rate-limit');
 
 router.post('/login', loginRateLimit, controller.login);
 router.use(auth, requireAdmin);
+router.get('/dashboard', dashboardController.getAdminDashboard);
 router.get('/login-logs', controller.getLoginLogs);
 router.patch('/change-password', controller.changePassword);
 router.use('/notifications', notificationRoutes('admin'));

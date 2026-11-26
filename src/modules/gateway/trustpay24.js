@@ -4,9 +4,10 @@ const endpoint = new URL('https://control.trustpay24.online/api/merchant/v1/payi
 const maximumResponseBytes = 1024 * 1024;
 const timeoutMilliseconds = 15000;
 
-function providerError(message, status = 502) {
+function providerError(message, status = 502, gatewayResponse) {
   const error = new Error(message);
   error.status = status;
+  if (gatewayResponse !== undefined) error.gatewayResponse = gatewayResponse;
   return error;
 }
 
@@ -57,17 +58,17 @@ module.exports = async (payload) => {
 
       response.on('end', () => {
         const providerStatus = response.statusCode || 502;
+        const responseText = Buffer.concat(chunks).toString('utf8');
         let result;
         try {
-          result = responseBytes
-            ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
-            : {};
+          result = responseBytes ? JSON.parse(responseText) : {};
         } catch (error) {
           if (providerStatus < 200 || providerStatus >= 300) {
             console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
             reject(providerError(
               `TrustPay24 rejected the payin request (HTTP ${providerStatus})`,
-              clientErrorStatus(providerStatus)
+              clientErrorStatus(providerStatus),
+              responseText.replace(/[\r\n\t]/g, ' ').slice(0, 1000) || null
             ));
             return;
           }
@@ -81,12 +82,16 @@ module.exports = async (payload) => {
             ? result.message
             : result && typeof result.error === 'string'
               ? result.error
-              : '';
+              : responseText;
           const safeMessage = providerMessage.replace(/[\r\n\t]/g, ' ').slice(0, 200);
+          const gatewayResponse = result && typeof result === 'object' && !Array.isArray(result)
+            ? result
+            : responseText.replace(/[\r\n\t]/g, ' ').slice(0, 1000) || null;
           console.error(`[TrustPay24] payin request returned HTTP ${providerStatus}`);
           reject(providerError(
             `TrustPay24 rejected the payin request (HTTP ${providerStatus})${safeMessage ? `: ${safeMessage}` : ''}`,
-            clientErrorStatus(providerStatus)
+            clientErrorStatus(providerStatus),
+            gatewayResponse
           ));
           return;
         }
